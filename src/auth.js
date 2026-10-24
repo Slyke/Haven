@@ -776,7 +776,7 @@ router.post('/login', authLimiter, async (req, res) => {
 
     // Bootstrap admin from ADMIN_USERNAME env only when NO admin exists
     // (first run or recovery). Prevents overriding explicit admin transfers.
-    const anyAdmin = db.prepare('SELECT id FROM users WHERE is_admin = 1 LIMIT 1').get();
+    const anyAdmin = await asyncDb.prepare('SELECT id FROM users WHERE is_admin = 1 LIMIT 1').get();
     if (!anyAdmin && user.username.toLowerCase() === ADMIN_USERNAME && !user.is_admin) {
       db.prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(user.id);
       grantAdminRole(db, user.id);
@@ -812,8 +812,8 @@ router.post('/login', authLimiter, async (req, res) => {
     // Record EULA acceptance
     if (eulaVersion) {
       try {
-        db.prepare(
-          'INSERT OR IGNORE INTO eula_acceptances (user_id, version, ip_address, age_verified) VALUES (?, ?, ?, ?)'
+        await asyncDb.prepare(
+          'INSERT INTO eula_acceptances (user_id, version, ip_address, age_verified) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, version) DO NOTHING'
         ).run(user.id, eulaVersion, req.ip || req.socket.remoteAddress || '', ageVerified ? 1 : 0);
       } catch (err) {
         console.warn('[login] Failed to record EULA acceptance:', err.message);
@@ -1834,8 +1834,8 @@ router.put('/user-servers', express.json({ limit: '96kb' }), async (req, res) =>
   }
 
   try {
-    const db = getDb();
-    db.prepare('UPDATE users SET encrypted_servers = ? WHERE id = ?').run(blob, decoded.id);
+    const db = getAsyncDb();
+    await db.prepare('UPDATE users SET encrypted_servers = ? WHERE id = ?').run(blob, decoded.id);
     res.json({ ok: true });
   } catch (err) {
     console.error('Put user-servers error:', err);

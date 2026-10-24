@@ -170,13 +170,13 @@ module.exports = function registerMediaLibrary(deps) {
   });
 
   // -- User sound preferences ---------------------------------------------------
-  app.get('/api/user-sound-prefs', (req, res) => {
+  app.get('/api/user-sound-prefs', async (req, res) => {
     const token = req.headers.authorization?.split(' ')[1];
     const user = token ? verifyToken(token) : null;
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
-    const { getDb } = require('../database');
+    const { getAsyncDb } = require('../database');
     try {
-      const rows = getDb().prepare('SELECT sound_name, hidden, custom_order FROM sound_preferences WHERE user_id = ?').all(user.id);
+      const rows = await getAsyncDb().prepare('SELECT sound_name, hidden, custom_order FROM sound_preferences WHERE user_id = ?').all(user.id);
       const prefs = {};
       rows.forEach(r => { prefs[r.sound_name] = { hidden: !!r.hidden, customOrder: r.custom_order }; });
       res.json({ prefs });
@@ -278,13 +278,13 @@ module.exports = function registerMediaLibrary(deps) {
     });
   });
 
-  app.get('/api/emojis', (req, res) => {
+  app.get('/api/emojis', async (req, res) => {
     const token = req.headers.authorization?.split(' ')[1];
     const user = token ? verifyToken(token) : null;
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
-    const { getDb } = require('../database');
+    const { getAsyncDb } = require('../database');
     try {
-      const emojis = getDb().prepare('SELECT name, filename FROM custom_emojis ORDER BY name').all();
+      const emojis = await getAsyncDb().prepare('SELECT name, filename FROM custom_emojis ORDER BY name').all();
       res.json({ emojis: emojis.map(e => ({ name: e.name, url: `/uploads/${e.filename}` })) });
     } catch { res.json({ emojis: [] }); }
   });

@@ -154,3 +154,94 @@ test('PostgreSQL returns the same disabled, custom and volume sound list', { ski
   t.after(async () => { db.async = original; await fixture.close(); });
   assert.deepEqual(await sounds(), { status: 200, body: { sounds: expectedSounds() } });
 });
+
+
+// These lists load alongside the sound library as members open the app.
+db.prepare('INSERT INTO custom_emojis (name, filename) VALUES (?, ?)').run('z_wave', 'wave.gif');
+db.prepare('INSERT INTO custom_emojis (name, filename) VALUES (?, ?)').run('a_smile', 'smile.png');
+const otherUser = db.prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)').run('other', 'hash').lastInsertRowid;
+const insertPref = db.prepare('INSERT INTO sound_preferences (user_id, sound_name, hidden, custom_order) VALUES (?, ?, ?, ?)');
+insertPref.run(userId, 'Custom', 1, 0);
+insertPref.run(userId, quiet, 0, null);
+insertPref.run(otherUser, 'Other private preference', 1, 2);
+const listCases = [
+  { route: '/api/emojis', body: { emojis: [
+    { name: 'a_smile', url: '/uploads/smile.png' },
+    { name: 'z_wave', url: '/uploads/wave.gif' },
+  ] }, fallback: { emojis: [] }, table: 'custom_emojis' },
+  { route: '/api/user-sound-prefs', body: { prefs: {
+    Custom: { hidden: true, customOrder: 0 },
+    [quiet]: { hidden: false, customOrder: null },
+  } }, fallback: { prefs: {} }, table: 'sound_preferences' },
+];
+
+async function list(route, auth = token) {
+  const res = await fetch(base + route, {
+    headers: auth ? { Authorization: `Bearer ${auth}` } : {},
+    signal: AbortSignal.timeout(10000),
+  });
+  return { status: res.status, body: await res.json() };
+}
+
+for (const backend of ['sqlite', 'postgres']) {
+  test(`${backend} emoji and per-user sound lists`, {
+    skip: backend === 'postgres' && !process.env.HAVEN_TEST_POSTGRES_URL,
+  }, async (t) => {
+    const fixture = backend === 'postgres'
+      ? await require('./postgresHarness').createPostgresFixture(db, ['custom_emojis', 'sound_preferences'])
+      : null;
+    const original = db.async;
+    const driver = fixture ? fixture.db : original;
+    db.async = driver;
+    t.after(async () => { db.async = original; if (fixture) await fixture.close(); });
+
+    await t.test('emoji ordering and private sound preference values stay intact', async () => {
+      for (const item of listCases) assert.deepEqual(await list(item.route), { status: 200, body: item.body });
+    });
+
+    await t.test('both routes await late results', async (t) => {
+      const prepare = driver.prepare.bind(driver);
+      const called = [];
+      t.mock.method(driver, 'prepare', sql => ({
+        async all(...params) {
+          await nextTurn();
+          called.push(sql);
+          return prepare(sql).all(...params);
+        },
+      }));
+      for (const item of listCases) assert.deepEqual(await list(item.route), { status: 200, body: item.body });
+      assert.equal(called.length, 2);
+    });
+
+    await t.test('rejected reads keep the existing empty-list fallbacks', async (t) => {
+      t.mock.method(driver, 'prepare', () => ({
+        async all() { await nextTurn(); throw new Error('backend unavailable'); },
+      }));
+      for (const item of listCases) assert.deepEqual(await list(item.route), { status: 200, body: item.fallback });
+    });
+
+    await t.test('missing user preferences or an empty emoji library stay empty', async () => {
+      for (const item of listCases) {
+        const rows = await driver.prepare(`SELECT * FROM ${item.table}`).all();
+        try {
+          await driver.prepare(`DELETE FROM ${item.table}`).run();
+          assert.deepEqual(await list(item.route), { status: 200, body: item.fallback });
+        } finally {
+          for (const row of rows) {
+            const columns = Object.keys(row);
+            await driver.prepare(`INSERT INTO ${item.table} (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`)
+              .run(...Object.values(row));
+          }
+        }
+      }
+    });
+
+    await t.test('invalid or missing tokens are refused before reading either table', async (t) => {
+      t.mock.method(driver, 'prepare', () => { throw new Error('must not query'); });
+      const challenge = jwt.sign({ id: userId, purpose: 'totp_challenge' }, process.env.JWT_SECRET);
+      for (const auth of ['', 'invalid', challenge]) {
+        for (const item of listCases) assert.deepEqual(await list(item.route, auth), { status: 401, body: { error: 'Unauthorized' } });
+      }
+    });
+  });
+}

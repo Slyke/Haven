@@ -1,6 +1,6 @@
 'use strict';
 
-// Auth entry-point reads run through the same HTTP routes on both backends.
+// Converted auth reads and writes use the same HTTP routes on both backends.
 // The legacy SQLite fixture remains only for unconverted auth helpers; this
 // split is test-only and initDatabase() never enables it for a live server.
 //
@@ -76,6 +76,8 @@ const SQL = {
   registrationSiteKey: "SELECT value FROM server_settings WHERE key = 'turnstile_site_key'",
   login: 'SELECT * FROM users WHERE LOWER(username) = LOWER(?)',
   ban: 'SELECT reason FROM bans WHERE user_id = ?',
+  admin: 'SELECT id FROM users WHERE is_admin = 1 LIMIT 1',
+  eula: 'INSERT INTO eula_acceptances (user_id, version, ip_address, age_verified) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, version) DO NOTHING',
   validate: 'SELECT username, display_name, avatar FROM users WHERE id = ?',
   password: 'SELECT id, password_hash FROM users WHERE id = ?',
   totp: 'SELECT totp_enabled FROM users WHERE id = ?',
@@ -117,8 +119,8 @@ async function call(method, route, body, auth = token) {
   });
   return { status: res.status, body: await res.json() };
 }
-const login = (username = 'aLiCe', password = PASSWORD) => call('POST', '/login',
-  { username, password, eulaVersion: '2.0', ageVerified: true }, '');
+const login = (username = 'aLiCe', password = PASSWORD, eulaVersion = '2.0') => call('POST', '/login',
+  { username, password, eulaVersion, ageVerified: true }, '');
 
 async function flows() {
   const registration = await call('GET', '/registration-info', null, '');
@@ -142,9 +144,10 @@ async function flows() {
 for (const backend of ['sqlite', 'postgres']) {
   test(`${backend} auth lookups`, { skip: backend === 'postgres' && !process.env.HAVEN_TEST_POSTGRES_URL }, async (t) => {
     const fixture = backend === 'postgres' ? await createPostgresFixture(db, [
-      'users', 'bans', 'server_settings', 'totp_backup_codes', 'account_recovery_codes',
+      'users', 'bans', 'server_settings', 'totp_backup_codes', 'account_recovery_codes', 'eula_acceptances',
     ]) : null;
     const driver = fixture ? fixture.db : sqliteAsync;
+    if (fixture) await driver.prepare('CREATE UNIQUE INDEX eula_user_version ON eula_acceptances (user_id, version)').run();
     db.async = driver;
     SQL.login = `SELECT * FROM users WHERE ${driver.sql.caseInsensitiveEqual('username')}`;
     const expectedQueries = Object.values(SQL);
@@ -165,6 +168,11 @@ for (const backend of ['sqlite', 'postgres']) {
           await nextTurn();
           calls.push(sql);
           return prepare(sql).all(...params);
+        },
+        async run(...params) {
+          await nextTurn();
+          calls.push(sql);
+          return prepare(sql).run(...params);
         },
       }));
       await flows();
@@ -209,6 +217,7 @@ for (const backend of ['sqlite', 'postgres']) {
       const calls = [];
       t.mock.method(driver, 'prepare', sql => ({
         async get(...params) { calls.push(sql); return prepare(sql).get(...params); },
+        async run(...params) { calls.push(sql); return prepare(sql).run(...params); },
       }));
       assert.deepEqual(await login('missing'), { status: 401, body: { error: 'Invalid credentials' } });
       assert.deepEqual(await login('banned', 'wrong'), { status: 401, body: { error: 'Invalid credentials' } });
@@ -240,6 +249,7 @@ for (const backend of ['sqlite', 'postgres']) {
           [sql, () => call('GET', '/registration-info', null, ''), 200, registrationFallback]),
         [SQL.login, () => login(), 500, { error: 'Server error' }],
         [SQL.ban, () => login(), 500, { error: 'Server error' }],
+        [SQL.admin, () => login(), 500, { error: 'Server error' }],
         [SQL.validate, () => call('GET', '/validate'), 500, { error: 'Server error' }],
         [SQL.password, () => call('POST', '/verify-password', { password: PASSWORD }), 500, { valid: false, error: 'Server error' }],
         [SQL.totp, () => call('GET', '/totp/status'), 500, { error: 'Server error' }],
@@ -269,6 +279,64 @@ for (const backend of ['sqlite', 'postgres']) {
       }
     });
 
+    await t.test('encrypted server lists can be saved, read back and cleared without changing another account', async (t) => {
+      const prepare = driver.prepare.bind(driver);
+      const written = [];
+      t.mock.method(driver, 'prepare', sql => ({
+        async get(...params) { await nextTurn(); return prepare(sql).get(...params); },
+        async run(...params) { await nextTurn(); written.push(sql); return prepare(sql).run(...params); },
+      }));
+      const opaque = "ciphertext'; SELECT 1; --";
+      const put = blob => call('PUT', '/user-servers', { blob });
+      try {
+        assert.deepEqual(await put(opaque), { status: 200, body: { ok: true } });
+        assert.deepEqual(await call('GET', '/user-servers'), { status: 200, body: { blob: opaque } });
+        const other = jwt.sign({ id: admin, username: 'admin', pwv: 1 }, process.env.JWT_SECRET);
+        assert.deepEqual(await call('GET', '/user-servers', null, other), { status: 200, body: { blob: null } });
+        assert.deepEqual(await put('a'.repeat(65537)), { status: 400, body: { error: 'Server list too large' } });
+        assert.equal(written.length, 1);
+        assert.deepEqual(await put(null), { status: 200, body: { ok: true } });
+        assert.deepEqual(await call('GET', '/user-servers'), { status: 200, body: { blob: null } });
+      } finally {
+        await prepare('UPDATE users SET encrypted_servers = ? WHERE id = ?').run('opaque-server-list', alice);
+      }
+    });
+
+    await t.test('a failed server-list write returns 500 and preserves the saved blob', async (t) => {
+      t.mock.method(console, 'error', () => {});
+      const prepare = driver.prepare.bind(driver);
+      t.mock.method(driver, 'prepare', sql => ({
+        async get(...params) { return prepare(sql).get(...params); },
+        async run() { await nextTurn(); throw new Error('backend unavailable'); },
+      }));
+      assert.deepEqual(await call('PUT', '/user-servers', { blob: 'replacement' }), { status: 500, body: { error: 'Server error' } });
+      assert.deepEqual(await call('GET', '/user-servers'), { status: 200, body: { blob: 'opaque-server-list' } });
+    });
+
+    await t.test('login records acceptance once and leaves the first acceptance unchanged on repeats', async () => {
+      const version = 'async-flow-version';
+      assert.equal((await login('alice', PASSWORD, version)).status, 200);
+      const read = driver.prepare('SELECT user_id, version, ip_address, age_verified FROM eula_acceptances WHERE user_id = ? AND version = ?');
+      const first = await read.all(alice, version);
+      assert.equal(first.length, 1);
+      assert.equal(first[0].age_verified, 1);
+      assert.match(first[0].ip_address, /198\.51\.100\./);
+      assert.equal((await login('alice', PASSWORD, version)).status, 200);
+      assert.deepEqual(await read.all(alice, version), first);
+    });
+
+    await t.test('a failed acceptance write retains the best-effort login behavior', async (t) => {
+      const prepare = driver.prepare.bind(driver);
+      const warnings = [];
+      t.mock.method(console, 'warn', (...args) => { warnings.push(args[0]); });
+      t.mock.method(driver, 'prepare', sql => ({
+        async get(...params) { return prepare(sql).get(...params); },
+        async run() { await nextTurn(); throw new Error('backend unavailable'); },
+      }));
+      assert.equal((await login()).status, 200);
+      assert.deepEqual(warnings, ['[login] Failed to record EULA acceptance:']);
+    });
+
     await t.test('session-only lookups refuse invalid and second-factor tokens before querying', async (t) => {
       t.mock.method(driver, 'prepare', () => { throw new Error('must not query'); });
       const challenge = jwt.sign({ id: alice, purpose: 'totp_challenge' }, process.env.JWT_SECRET);
@@ -277,6 +345,7 @@ for (const backend of ['sqlite', 'postgres']) {
           assert.equal((await call('GET', route, null, auth)).status, 401);
         }
         assert.equal((await call('POST', '/verify-password', { password: PASSWORD }, auth)).status, 401);
+        assert.equal((await call('PUT', '/user-servers', { blob: 'unauthorized' }, auth)).status, 401);
       }
     });
 
@@ -285,18 +354,24 @@ for (const backend of ['sqlite', 'postgres']) {
         t.mock.method(db, 'prepare', () => { throw new Error('Unconverted SQLite call'); });
         assert.deepEqual(await call('GET', '/registration-info', null, ''), { status: 200, body: registrationInfo });
       });
-      await t.test('login reaches the first unconverted legacy query after both PostgreSQL reads', async (t) => {
+      await t.test('normal login reaches the remaining session-duration lookup and records acceptance in PostgreSQL', async (t) => {
         const query = driver._query.bind(driver);
         const reads = [];
         const legacy = [];
-        t.mock.method(console, 'error', () => {});
+        const prepare = db.prepare.bind(db);
         t.mock.method(driver, '_query', async (...args) => { reads.push(args[0].text); return query(...args); });
-        t.mock.method(db, 'prepare', sql => { legacy.push(sql); throw new Error('Unconverted SQLite call'); });
-        assert.deepEqual(await login(), { status: 500, body: { error: 'Server error' } });
-        assert.equal(reads.length, 2);
+        t.mock.method(db, 'prepare', sql => {
+          legacy.push(sql);
+          assert.equal(sql, "SELECT value FROM server_settings WHERE key = 'session_duration_days'");
+          return prepare(sql);
+        });
+        assert.equal((await login()).status, 200);
+        assert.equal(reads.length, 4);
         assert.match(reads[0], /LOWER\("username"\) = LOWER\(\$1\)/);
         assert.match(reads[1], /FROM bans WHERE user_id = \$1/);
-        assert.deepEqual(legacy, ['SELECT id FROM users WHERE is_admin = 1 LIMIT 1']);
+        assert.equal(reads[2], SQL.admin);
+        assert.match(reads[3], /INSERT INTO eula_acceptances/);
+        assert.deepEqual(legacy, ["SELECT value FROM server_settings WHERE key = 'session_duration_days'"]);
       });
     }
   });
