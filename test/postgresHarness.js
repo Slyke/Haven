@@ -11,7 +11,7 @@ const { PostgresDatabase } = require('../src/db/postgres');
 const quote = name => '"' + String(name).replace(/"/g, '""') + '"';
 
 async function createPostgresFixture(sqlite, tables) {
-  const { Client } = require('pg');
+  const { Client } = require('../src/db/pgAddon').loadPg();
   const client = new Client({ connectionString: process.env.HAVEN_TEST_POSTGRES_URL, connectionTimeoutMillis: 5000 });
   const schema = 'haven_test_' + crypto.randomBytes(8).toString('hex');
   const db = new PostgresDatabase({ pool: client });

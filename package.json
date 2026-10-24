@@ -27,7 +27,6 @@
     "multer": "^2.4.0",
     "music-metadata": "^11.16.0",
     "otpauth": "^9.5.0",
-    "pg": "8.23.1",
     "qrcode": "^1.5.4",
     "semver": "^7.7.4",
     "socket.io": "^4.8.1",

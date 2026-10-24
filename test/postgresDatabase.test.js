@@ -77,15 +77,3 @@ test('close ends its connection once and later queries reject', async () => {
   assert.equal(ended(), 1);
   await assert.rejects(db.prepare('SELECT 1').get(), /not open/);
 });
-
-test('pg is pinned as a production dependency for the normal Docker npm ci step', () => {
-  const fs = require('node:fs');
-  const path = require('node:path');
-  const root = path.join(__dirname, '..');
-  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8').replace(/^\uFEFF/, ''));
-  const lock = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8'));
-  assert.match(pkg.dependencies.pg, /^\d+\.\d+\.\d+$/);
-  assert.equal(lock.packages[''].dependencies.pg, pkg.dependencies.pg);
-  assert.equal(lock.packages['node_modules/pg'].version, pkg.dependencies.pg);
-  assert.notEqual(lock.packages['node_modules/pg'].dev, true);
-});

@@ -2,7 +2,8 @@
 
 // Temporary query-only migration stage until schema initialization and all
 // app calls support PostgreSQL. The SQLite compatibility bridge and startup
-// guard can then be removed; pg remains a normal application dependency.
+// guard can then be removed; pg stays an on-demand add-on selected by
+// HAVEN_DATABASE_URL.
 //
 // It supports positional ? bindings and get/all/run. Schema upgrades,
 // transactions, named bindings and SQLite-specific SQL are not migrated yet;
@@ -68,7 +69,11 @@ class PostgresDatabase {
     // Identifiers are schema-owned, not request values.
     this.sql = { caseInsensitiveEqual: column => `LOWER("${String(column).replace(/"/g, '""')}") = LOWER(?)` };
     this.async = this;
+    if (!pool && !String(url || '').trim()) throw new Error('A PostgreSQL URL is required');
     this._url = url;
+    // Like S3, selecting this backend installs its pinned client. An injected
+    // pool lets tests exercise the adapter without installing anything.
+    this._pg = pool ? null : require('./pgAddon').loadPg();
     this._pool = pool || null;
     this._closed = false;
     this._closing = null;
@@ -80,7 +85,7 @@ class PostgresDatabase {
       throw new Error(`Expected ${compiled.count} SQL parameters, got ${params.length}`);
     }
     if (!this._pool) {
-      const { Pool } = require('pg');
+      const { Pool } = this._pg;
       this._pool = new Pool({ connectionString: this._url, max: 10, connectionTimeoutMillis: 5000 });
       // An idle pool error must not crash the process. Report the code only;
       // connection strings can contain a password.

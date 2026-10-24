@@ -18,7 +18,9 @@ const { SqliteDatabase } = require('../src/db/sqlite');
 
 test.after(() => fs.rmSync(DATA, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
 
-test('PostgreSQL selects a lazy query adapter; invalid schemes still fail', async () => {
+test('PostgreSQL selects its on-demand client without opening a connection; invalid schemes still fail', async (t) => {
+  const addon = require('../src/db/pgAddon');
+  const load = t.mock.method(addon, 'loadPg', () => ({}));
   for (const url of ['postgres://user:secret@db/haven', ' postgresql://user:secret@db/haven ']) {
     const db = fromEnv({ HAVEN_DATABASE_URL: url });
     assert.equal(db.kind, 'postgres');
@@ -29,10 +31,12 @@ test('PostgreSQL selects a lazy query adapter; invalid schemes still fail', asyn
     assert.throws(() => fromEnv({ HAVEN_DATABASE_URL: url }), /must be a postgres:\/\/ or postgresql:\/\/ URL/);
   }
   assert.equal(fs.existsSync(path.join(DATA, 'haven.db')), false);
-  assert.ok(!Object.keys(require.cache).some(f => /[\\/]node_modules[\\/]pg[\\/]/.test(f)), 'selecting a driver does not load the pg client');
+  assert.equal(load.mock.callCount(), 2, 'only valid PostgreSQL URLs select the client');
 });
 
-test('full PostgreSQL server startup is guarded without opening SQLite or exposing credentials', () => {
+test('full PostgreSQL server startup is guarded without opening SQLite or exposing credentials', (t) => {
+  const addon = require('../src/db/pgAddon');
+  const load = t.mock.method(addon, 'loadPg', () => ({}));
   const { initDatabase } = require('../src/database');
   process.env.HAVEN_DATABASE_URL = 'postgres://user:secret@db/haven';
   try {
@@ -42,7 +46,7 @@ test('full PostgreSQL server startup is guarded without opening SQLite or exposi
       return true;
     });
     assert.equal(fs.existsSync(path.join(DATA, 'haven.db')), false);
-    assert.ok(!fs.existsSync(path.join(DATA, 'addons')));
+    assert.equal(load.mock.callCount(), 1);
   } finally { delete process.env.HAVEN_DATABASE_URL; }
 });
 
