@@ -1,6 +1,6 @@
 'use strict';
 
-// Nine auth reads run through the same HTTP routes on SQLite and PostgreSQL.
+// Auth entry-point reads run through the same HTTP routes on both backends.
 // The legacy SQLite fixture remains only for unconverted auth helpers; this
 // split is test-only and initDatabase() never enables it for a live server.
 //
@@ -42,6 +42,19 @@ db.prepare('INSERT INTO bans (user_id, banned_by, reason) VALUES (?, ?, ?)').run
 db.prepare("INSERT OR REPLACE INTO server_settings (key, value) VALUES ('guests_enabled', 'true')").run();
 for (const used of [0, 0, 1]) db.prepare('INSERT INTO totp_backup_codes (user_id, code_hash, used) VALUES (?, ?, ?)').run(alice, 'fixture', used);
 for (const used of [0, 1]) db.prepare('INSERT INTO account_recovery_codes (user_id, code_hash, used) VALUES (?, ?, ?)').run(alice, 'fixture', used);
+const registrationSettings = {
+  registration_token_enabled: 'true',
+  invites_bypass_registration_token: 'true',
+  registration_token: 'private-registration-token',
+  registration_captcha_enabled: 'true',
+  turnstile_site_key: '  public-site-key  ',
+};
+const setSetting = db.prepare('INSERT OR REPLACE INTO server_settings (key, value) VALUES (?, ?)');
+for (const [key, value] of Object.entries(registrationSettings)) setSetting.run(key, value);
+const registrationInfo = {
+  requiresToken: true, invitesBypassToken: true, captchaEnabled: true, turnstileSiteKey: 'public-site-key',
+};
+const registrationFallback = { requiresToken: false, captchaEnabled: false, turnstileSiteKey: '' };
 const token = jwt.sign({ id: alice, username: 'alice', pwv: 1 }, process.env.JWT_SECRET);
 
 // Only these process-lifetime auth cleanup timers belong to this import.
@@ -57,6 +70,10 @@ try { ({ router } = require('../src/auth')); }
 finally { importTimerMock.mock.restore(); }
 
 const SQL = {
+  registrationFlags: "SELECT key, value FROM server_settings WHERE key IN ('registration_token_enabled', 'invites_bypass_registration_token')",
+  registrationToken: "SELECT value FROM server_settings WHERE key = 'registration_token'",
+  registrationCaptcha: "SELECT value FROM server_settings WHERE key = 'registration_captcha_enabled'",
+  registrationSiteKey: "SELECT value FROM server_settings WHERE key = 'turnstile_site_key'",
   login: 'SELECT * FROM users WHERE LOWER(username) = LOWER(?)',
   ban: 'SELECT reason FROM bans WHERE user_id = ?',
   validate: 'SELECT username, display_name, avatar FROM users WHERE id = ?',
@@ -104,6 +121,9 @@ const login = (username = 'aLiCe', password = PASSWORD) => call('POST', '/login'
   { username, password, eulaVersion: '2.0', ageVerified: true }, '');
 
 async function flows() {
+  const registration = await call('GET', '/registration-info', null, '');
+  assert.deepEqual(registration, { status: 200, body: registrationInfo });
+  assert.ok(!JSON.stringify(registration).includes(registrationSettings.registration_token), 'the registration token stays private');
   const signedIn = await login();
   assert.equal(signedIn.status, 200);
   assert.equal(signedIn.body.user.id, alice);
@@ -130,7 +150,7 @@ for (const backend of ['sqlite', 'postgres']) {
     const expectedQueries = Object.values(SQL);
     t.after(async () => { db.async = sqliteAsync; if (fixture) await fixture.close(); });
 
-    await t.test('the real backend preserves all nine lookup results', flows);
+    await t.test('the real backend preserves every entry-point query result', flows);
 
     await t.test('every lookup awaits results that arrive on a later event-loop turn', async (t) => {
       const prepare = driver.prepare.bind(driver);
@@ -141,9 +161,47 @@ for (const backend of ['sqlite', 'postgres']) {
           calls.push(sql);
           return prepare(sql).get(...params);
         },
+        async all(...params) {
+          await nextTurn();
+          calls.push(sql);
+          return prepare(sql).all(...params);
+        },
       }));
       await flows();
       assert.deepEqual(calls, expectedQueries);
+    });
+
+    await t.test('registration handles disabled, empty and missing settings without exposing secrets', async () => {
+      const update = driver.prepare('UPDATE server_settings SET value = ? WHERE key = ?');
+      const remove = driver.prepare('DELETE FROM server_settings WHERE key = ?');
+      const insert = driver.prepare('INSERT INTO server_settings (key, value) VALUES (?, ?)');
+      try {
+        for (const key of ['registration_token_enabled', 'invites_bypass_registration_token', 'registration_captcha_enabled']) {
+          await update.run('false', key);
+        }
+        assert.deepEqual(await call('GET', '/registration-info', null, ''), { status: 200, body: {
+          requiresToken: false, invitesBypassToken: false, captchaEnabled: false, turnstileSiteKey: '',
+        } });
+
+        await update.run('true', 'registration_token_enabled');
+        await update.run('true', 'invites_bypass_registration_token');
+        await update.run('', 'registration_token');
+        await update.run('true', 'registration_captcha_enabled');
+        await update.run('   ', 'turnstile_site_key');
+        assert.deepEqual(await call('GET', '/registration-info', null, ''), { status: 200, body: {
+          requiresToken: false, invitesBypassToken: true, captchaEnabled: false, turnstileSiteKey: '',
+        } });
+
+        for (const key of Object.keys(registrationSettings)) await remove.run(key);
+        assert.deepEqual(await call('GET', '/registration-info', null, ''), { status: 200, body: {
+          requiresToken: false, invitesBypassToken: false, captchaEnabled: false, turnstileSiteKey: '',
+        } });
+      } finally {
+        for (const [key, value] of Object.entries(registrationSettings)) {
+          await remove.run(key);
+          await insert.run(key, value);
+        }
+      }
     });
 
     await t.test('bad credentials reveal no ban reason; SSO and second-factor gates remain', async (t) => {
@@ -178,6 +236,8 @@ for (const backend of ['sqlite', 'postgres']) {
 
     await t.test('a rejected query fails closed in every route', async (t) => {
       const cases = [
+        ...[SQL.registrationFlags, SQL.registrationToken, SQL.registrationCaptcha, SQL.registrationSiteKey].map(sql =>
+          [sql, () => call('GET', '/registration-info', null, ''), 200, registrationFallback]),
         [SQL.login, () => login(), 500, { error: 'Server error' }],
         [SQL.ban, () => login(), 500, { error: 'Server error' }],
         [SQL.validate, () => call('GET', '/validate'), 500, { error: 'Server error' }],
@@ -198,6 +258,11 @@ for (const backend of ['sqlite', 'postgres']) {
               if (sql === failed) throw new Error('backend unavailable');
               return prepare(sql).get(...params);
             },
+            async all(...params) {
+              await nextTurn();
+              if (sql === failed) throw new Error('backend unavailable');
+              return prepare(sql).all(...params);
+            },
           }));
           assert.deepEqual(await request(), { status, body });
         });
@@ -216,6 +281,10 @@ for (const backend of ['sqlite', 'postgres']) {
     });
 
     if (fixture) {
+      await t.test('registration bootstrap completes without any legacy SQLite calls', async (t) => {
+        t.mock.method(db, 'prepare', () => { throw new Error('Unconverted SQLite call'); });
+        assert.deepEqual(await call('GET', '/registration-info', null, ''), { status: 200, body: registrationInfo });
+      });
       await t.test('login reaches the first unconverted legacy query after both PostgreSQL reads', async (t) => {
         const query = driver._query.bind(driver);
         const reads = [];

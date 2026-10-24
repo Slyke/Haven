@@ -268,19 +268,22 @@ async function downloadSSOAvatar(url) {
 // (#5344) Public endpoint that tells the registration page which
 // gates the admin has enabled. Only booleans are exposed; the
 // actual token value never leaves the server here.
-router.get('/registration-info', (req, res) => {
+router.get('/registration-info', async (req, res) => {
   try {
-    const db = getDb();
-    const tokenEnabledRow = db.prepare("SELECT value FROM server_settings WHERE key = 'registration_token_enabled'").get();
-    const inviteBypassTokenRow = db.prepare("SELECT value FROM server_settings WHERE key = 'invites_bypass_registration_token'").get();
-    const tokenRow = db.prepare("SELECT value FROM server_settings WHERE key = 'registration_token'").get();
+    const db = getAsyncDb();
+    const tokenFlags = await db.prepare(
+      "SELECT key, value FROM server_settings WHERE key IN ('registration_token_enabled', 'invites_bypass_registration_token')"
+    ).all();
+    const tokenEnabledRow = tokenFlags.find(row => row.key === 'registration_token_enabled');
+    const inviteBypassTokenRow = tokenFlags.find(row => row.key === 'invites_bypass_registration_token');
+    const tokenRow = await db.prepare("SELECT value FROM server_settings WHERE key = 'registration_token'").get();
     const requiresToken = !!(tokenEnabledRow && tokenEnabledRow.value === 'true' && tokenRow && tokenRow.value);
     const invitesBypassToken = !!(inviteBypassTokenRow && inviteBypassTokenRow.value === 'true');
     // Opt-in Turnstile CAPTCHA. Only the public site key is exposed (safe by
     // design); the secret key never leaves the server. Gated on a site key
     // being present so the page never tries to render a keyless widget.
-    const capEnabledRow = db.prepare("SELECT value FROM server_settings WHERE key = 'registration_captcha_enabled'").get();
-    const siteKeyRow = db.prepare("SELECT value FROM server_settings WHERE key = 'turnstile_site_key'").get();
+    const capEnabledRow = await db.prepare("SELECT value FROM server_settings WHERE key = 'registration_captcha_enabled'").get();
+    const siteKeyRow = await db.prepare("SELECT value FROM server_settings WHERE key = 'turnstile_site_key'").get();
     const turnstileSiteKey = (siteKeyRow && typeof siteKeyRow.value === 'string') ? siteKeyRow.value.trim() : '';
     const captchaEnabled = !!(capEnabledRow && capEnabledRow.value === 'true' && turnstileSiteKey);
     res.json({ requiresToken, invitesBypassToken, captchaEnabled, turnstileSiteKey: captchaEnabled ? turnstileSiteKey : '' });
