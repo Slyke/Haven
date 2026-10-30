@@ -36,6 +36,9 @@ const sockets = [];
 function connect(token) {
   const s = io(BASE, { auth: { token }, transports: ['websocket'], forceNew: true });
   sockets.push(s);
+  // The server sends session-info immediately on connection. Listen before
+  // connect resolves so a fast handshake cannot deliver it ahead of the test.
+  s.sessionInfo = next(s, 'session-info');
   s.lists = new Map();
   s.memberLists = 0;
   s.on('online-users', (d) => { s.memberLists++; s.lists.set(d.channelCode, d.users); });
@@ -148,7 +151,7 @@ test('a birthday is set once, hiding keeps the date, and the year shows only whe
   assert.match((await setBirthday(A, { birthday: '2001-01-01', hidden: false })).error || '', /only be set once/, 'hiding does not free the date');
 
   const A2 = await connect(ann.token);
-  const session = await next(A2, 'session-info');
+  const session = await A2.sessionInfo;
   assert.equal(session.birthday, '2000-06-15', 'the owner still gets the date on connect');
   assert.equal(session.birthdayHidden, true);
   assert.equal(session.birthdayHideYear, false);
@@ -172,6 +175,6 @@ test('a birthday is set once, hiding keeps the date, and the year shows only whe
   db.close();
   assert.match((await setBirthday(A, '2000-07-01')).error || '', /only be set once/, 'still refused much later');
   const A3 = await connect(ann.token);
-  assert.equal((await next(A3, 'session-info'))?.birthday, '2000-06-15', 'the date never changed');
+  assert.equal((await A3.sessionInfo)?.birthday, '2000-06-15', 'the date never changed');
   A3.close();
 });

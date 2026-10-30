@@ -77,6 +77,7 @@ const SQL = {
   login: 'SELECT * FROM users WHERE LOWER(username) = LOWER(?)',
   ban: 'SELECT reason FROM bans WHERE user_id = ?',
   admin: 'SELECT id FROM users WHERE is_admin = 1 LIMIT 1',
+  duration: "SELECT value FROM server_settings WHERE key = 'session_duration_days'",
   eula: 'INSERT INTO eula_acceptances (user_id, version, ip_address, age_verified) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, version) DO NOTHING',
   validate: 'SELECT username, display_name, avatar FROM users WHERE id = ?',
   password: 'SELECT id, password_hash FROM users WHERE id = ?',
@@ -150,7 +151,9 @@ for (const backend of ['sqlite', 'postgres']) {
     if (fixture) await driver.prepare('CREATE UNIQUE INDEX eula_user_version ON eula_acceptances (user_id, version)').run();
     db.async = driver;
     SQL.login = `SELECT * FROM users WHERE ${driver.sql.caseInsensitiveEqual('username')}`;
-    const expectedQueries = Object.values(SQL);
+    const versionSql = 'SELECT password_version FROM users WHERE id = ?';
+    const expectedQueries = Object.values(SQL).flatMap(sql =>
+      [SQL.validate, SQL.password, SQL.totp, SQL.recovery, SQL.servers].includes(sql) ? [versionSql, sql] : [sql]);
     t.after(async () => { db.async = sqliteAsync; if (fixture) await fixture.close(); });
 
     await t.test('the real backend preserves every entry-point query result', flows);
@@ -236,7 +239,13 @@ for (const backend of ['sqlite', 'postgres']) {
     });
 
     await t.test('missing accounts keep their existing 404 or 401 responses', async (t) => {
-      t.mock.method(driver, 'prepare', () => ({ async get() { await nextTurn(); return undefined; } }));
+      const prepare = driver.prepare.bind(driver);
+      t.mock.method(driver, 'prepare', sql => ({
+        async get(...params) {
+          await nextTurn();
+          return sql === versionSql ? prepare(sql).get(...params) : undefined;
+        },
+      }));
       assert.deepEqual(await call('GET', '/validate'), { status: 404, body: { error: 'User not found' } });
       assert.deepEqual(await call('POST', '/verify-password', { password: PASSWORD }),
         { status: 401, body: { valid: false, error: 'Invalid credentials' } });
@@ -337,6 +346,80 @@ for (const backend of ['sqlite', 'postgres']) {
       assert.deepEqual(warnings, ['[login] Failed to record EULA acceptance:']);
     });
 
+    await t.test('password login preserves the configured session duration and its safe failure fallback', async (t) => {
+      const update = driver.prepare('UPDATE server_settings SET value = ? WHERE key = ?');
+      const original = (await driver.prepare(SQL.duration).get())?.value;
+      try {
+        for (const [value, days] of [['0', null], ['7', 7], ['365', 365], ['366', null], ['bad', null]]) {
+          await update.run(value, 'session_duration_days');
+          const result = await login();
+          assert.equal(result.status, 200);
+          const decoded = jwt.verify(result.body.token, process.env.JWT_SECRET);
+          assert.equal(decoded.exp == null ? null : (decoded.exp - decoded.iat) / 86400, days);
+        }
+        const prepare = driver.prepare.bind(driver);
+        t.mock.method(console, 'warn', () => {});
+        t.mock.method(driver, 'prepare', sql => ({
+          async get(...params) {
+            if (sql === SQL.duration) throw new Error('backend unavailable');
+            return prepare(sql).get(...params);
+          },
+          async run(...params) { return prepare(sql).run(...params); },
+        }));
+        const result = await login();
+        assert.equal(result.status, 200);
+        const decoded = jwt.verify(result.body.token, process.env.JWT_SECRET);
+        assert.equal(decoded.exp - decoded.iat, 7 * 86400);
+      } finally {
+        await update.run(original, 'session_duration_days');
+      }
+    });
+
+    await t.test('a missing, revoked or unreadable account cannot pass async token verification', async (t) => {
+      const { verifyTokenAsync } = require('../src/auth');
+      assert.equal((await verifyTokenAsync(token)).id, alice);
+      const update = driver.prepare('UPDATE users SET password_version = ? WHERE id = ?');
+      try {
+        await update.run(2, alice);
+        assert.equal(await verifyTokenAsync(token), null);
+        assert.equal((await call('GET', '/validate')).status, 401);
+      } finally {
+        await update.run(1, alice);
+      }
+      t.mock.method(driver, 'prepare', () => ({ async get() { throw new Error('backend unavailable'); } }));
+      assert.equal(await verifyTokenAsync(token), null);
+    });
+
+    if (!fixture) {
+      await t.test('an admin created while the awaited bootstrap check was pending prevents promotion', async (t) => {
+        const prepare = driver.prepare.bind(driver);
+        db.prepare('UPDATE users SET is_admin = 0 WHERE id = ?').run(admin);
+        let slippedIn = false;
+        t.mock.method(driver, 'prepare', sql => ({
+          async get(...params) {
+            const result = await prepare(sql).get(...params);
+            if (sql === SQL.admin && !slippedIn) {
+              slippedIn = true;
+              db.prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(alice);
+              await nextTurn();
+            }
+            return result;
+          },
+          async run(...params) { return prepare(sql).run(...params); },
+        }));
+        try {
+          const result = await login('admin');
+          assert.equal(result.status, 200);
+          assert.equal(result.body.user.isAdmin, false);
+          assert.equal(db.prepare('SELECT is_admin FROM users WHERE id = ?').get(admin).is_admin, 0);
+          assert.equal(db.prepare('SELECT is_admin FROM users WHERE id = ?').get(alice).is_admin, 1);
+        } finally {
+          db.prepare('UPDATE users SET is_admin = 0 WHERE id = ?').run(alice);
+          db.prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(admin);
+        }
+      });
+    }
+
     await t.test('session-only lookups refuse invalid and second-factor tokens before querying', async (t) => {
       t.mock.method(driver, 'prepare', () => { throw new Error('must not query'); });
       const challenge = jwt.sign({ id: alice, purpose: 'totp_challenge' }, process.env.JWT_SECRET);
@@ -354,24 +437,9 @@ for (const backend of ['sqlite', 'postgres']) {
         t.mock.method(db, 'prepare', () => { throw new Error('Unconverted SQLite call'); });
         assert.deepEqual(await call('GET', '/registration-info', null, ''), { status: 200, body: registrationInfo });
       });
-      await t.test('normal login reaches the remaining session-duration lookup and records acceptance in PostgreSQL', async (t) => {
-        const query = driver._query.bind(driver);
-        const reads = [];
-        const legacy = [];
-        const prepare = db.prepare.bind(db);
-        t.mock.method(driver, '_query', async (...args) => { reads.push(args[0].text); return query(...args); });
-        t.mock.method(db, 'prepare', sql => {
-          legacy.push(sql);
-          assert.equal(sql, "SELECT value FROM server_settings WHERE key = 'session_duration_days'");
-          return prepare(sql);
-        });
-        assert.equal((await login()).status, 200);
-        assert.equal(reads.length, 4);
-        assert.match(reads[0], /LOWER\("username"\) = LOWER\(\$1\)/);
-        assert.match(reads[1], /FROM bans WHERE user_id = \$1/);
-        assert.equal(reads[2], SQL.admin);
-        assert.match(reads[3], /INSERT INTO eula_acceptances/);
-        assert.deepEqual(legacy, ["SELECT value FROM server_settings WHERE key = 'session_duration_days'"]);
+      await t.test('login and every converted auth route complete without legacy SQLite reads or a warmed token cache', async (t) => {
+        t.mock.method(db, 'prepare', () => { throw new Error('Unconverted SQLite call'); });
+        await flows();
       });
     }
   });

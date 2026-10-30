@@ -47,6 +47,29 @@ function _sessionSignOptions() {
   return exp ? { expiresIn: exp } : {};
 }
 
+// The password-login path uses the same expiry rules through the async driver.
+async function _sessionExpiresInAsync() {
+  try {
+    const row = await getAsyncDb().prepare("SELECT value FROM server_settings WHERE key = 'session_duration_days'").get();
+    const n = parseInt(row && row.value);
+    if (n === 0) return null;
+    if (Number.isFinite(n) && n >= 1 && n <= 365) return `${n}d`;
+  } catch (err) {
+    // If the setting cannot be read, do not hand out a token that never
+    // expires; fall back to the old 7 day default instead.
+    console.warn('[auth] Could not read session duration, using 7 days:', err.message);
+    return '7d';
+  }
+  return null;
+}
+
+// Build the options object for jwt.sign() respecting the never-expire setting.
+// jsonwebtoken throws on { expiresIn: null }, so we must omit the field entirely.
+async function _sessionSignOptionsAsync() {
+  const exp = await _sessionExpiresInAsync();
+  return exp ? { expiresIn: exp } : {};
+}
+
 // ── TOTP helpers ─────────────────────────────────────────
 // Short-lived tokens for the TOTP verification step (not full session tokens).
 // `mustChangePassword` and `cancelTempReset` carry across the challenge so the
@@ -778,9 +801,10 @@ router.post('/login', authLimiter, async (req, res) => {
     // (first run or recovery). Prevents overriding explicit admin transfers.
     const anyAdmin = await asyncDb.prepare('SELECT id FROM users WHERE is_admin = 1 LIMIT 1').get();
     if (!anyAdmin && user.username.toLowerCase() === ADMIN_USERNAME && !user.is_admin) {
-      db.prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(user.id);
-      grantAdminRole(db, user.id);
-      user.is_admin = 1;
+      // The awaited check is only a hint. Recheck and grant without yielding
+      // so an admin registered or transferred meanwhile is never overwritten.
+      if (asyncDb.kind !== 'sqlite') throw new Error('PostgreSQL admin bootstrap is not migrated yet');
+      user.is_admin = require('./adminBootstrap')(db, user.id, ADMIN_USERNAME);
     }
 
     const displayName = user.display_name || user.username;
@@ -806,7 +830,7 @@ router.post('/login', authLimiter, async (req, res) => {
     const token = jwt.sign(
       { id: user.id, username: user.username, isAdmin: !!user.is_admin, displayName, pwv: user.password_version || 1 },
       JWT_SECRET,
-      _sessionSignOptions()
+      await _sessionSignOptionsAsync()
     );
 
     // Record EULA acceptance
@@ -976,7 +1000,7 @@ router.post('/change-password-required', authLimiter, async (req, res) => {
 router.get('/validate', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
-    const decoded = token ? verifyToken(token) : null;
+    const decoded = token ? await verifyTokenAsync(token) : null;
     if (!decoded) return res.status(401).json({ error: 'Invalid token' });
 
     const db = getAsyncDb();
@@ -1271,7 +1295,7 @@ router.get('/totp/status', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) return res.status(401).json({ error: 'Unauthorized' });
-    const decoded = verifyToken(token);
+    const decoded = await verifyTokenAsync(token);
     if (!decoded) return res.status(401).json({ error: 'Unauthorized' });
 
     const db = getAsyncDb();
@@ -1468,7 +1492,7 @@ router.post('/revoke-sessions', authLimiter, async (req, res) => {
 // per-account limit.
 router.post('/verify-password', authLimiter, async (req, res) => {
   try {
-    const session = verifyToken(req.headers.authorization?.split(' ')[1]);
+    const session = await verifyTokenAsync(req.headers.authorization?.split(' ')[1]);
     if (!session) return res.status(401).json({ valid: false, error: 'Unauthorized' });
     const password = typeof req.body.password === 'string' ? req.body.password : '';
     if (!password) return res.status(400).json({ valid: false, error: 'Password required' });
@@ -1540,6 +1564,23 @@ function verifyToken(token, opts = {}) {
   }
 }
 
+// Converted async routes check the selected backend directly. Do not fill the
+// legacy cache from an awaited read: a password change could invalidate it
+// while that read is pending.
+async function verifyTokenAsync(token, opts = {}) {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (decoded && (decoded.purpose || decoded.scope) && !opts.allowScoped) return null;
+    if (decoded && decoded.id && !decoded.purpose) {
+      const row = await getAsyncDb().prepare('SELECT password_version FROM users WHERE id = ?').get(decoded.id);
+      if (!row || (decoded.pwv || 1) !== (row.password_version || 1)) return null;
+    }
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
 // Called right after password_version is written so the change takes effect
 // immediately instead of waiting out the cache.
 function _forgetPwv(userId) { _pwvCache.delete(userId); }
@@ -1554,7 +1595,7 @@ router.get('/recovery-codes/status', async (req, res) => {
   try {
     // A session token only: the two-factor challenge token is signed with the
     // same key, and it once got recovery codes here without the second factor.
-    const decoded = verifyToken(auth.slice(7));
+    const decoded = await verifyTokenAsync(auth.slice(7));
     if (!decoded) return res.status(401).json({ error: 'Invalid token' });
     const db = getAsyncDb();
     const count = await db.prepare(
@@ -1810,7 +1851,7 @@ function generateChannelCode() {
 
 router.get('/user-servers', async (req, res) => {
   const token = req.headers.authorization?.split(' ')[1];
-  const decoded = token ? verifyToken(token) : null;
+  const decoded = token ? await verifyTokenAsync(token) : null;
   if (!decoded) return res.status(401).json({ error: 'Unauthorized' });
 
   try {
@@ -1825,7 +1866,7 @@ router.get('/user-servers', async (req, res) => {
 
 router.put('/user-servers', express.json({ limit: '96kb' }), async (req, res) => {
   const token = req.headers.authorization?.split(' ')[1];
-  const decoded = token ? verifyToken(token) : null;
+  const decoded = token ? await verifyTokenAsync(token) : null;
   if (!decoded) return res.status(401).json({ error: 'Unauthorized' });
 
   const blob = typeof req.body.blob === 'string' ? req.body.blob : null;
@@ -2430,4 +2471,4 @@ router.get('/oidc/callback', authLimiter, async (req, res) => {
   }
 });
 
-module.exports = { router, verifyToken, generateChannelCode, generateToken, generateConnectToken, authLimiter, acceptTotpCode, totpLimited, noteTotpFail };
+module.exports = { router, verifyToken, verifyTokenAsync, generateChannelCode, generateToken, generateConnectToken, authLimiter, acceptTotpCode, totpLimited, noteTotpFail };

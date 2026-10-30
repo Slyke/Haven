@@ -46,7 +46,7 @@ const protectedMessages = require('../protectedMessages');
 module.exports = function register(socket, ctx) {
   const {
     io, db, state, userHasPermission, getUserEffectiveLevel,
-    broadcastChannelLists, getEnrichedChannels, emitOnlineUsers, emitDmPresence, resetPresenceSync,
+    broadcastChannelLists, getEnrichedChannels, getEnrichedChannelsAsync, emitOnlineUsers, emitDmPresence, resetPresenceSync,
     handleVoiceLeave, broadcastVoiceUsers, generateUniqueSharedCode,
     logAudit, fireWebhookEvent, enforceAutomod,
     rotateChannelCode, rotatePrivateCodesAfterRemoval, botAudioManager
@@ -145,16 +145,21 @@ module.exports = function register(socket, ctx) {
     userHasPermission(socket.user.id, 'manage_sub_channels', parentId);
 
   // ── Get user's channels ─────────────────────────────────
-  socket.on('get-channels', () => {
-    const channels = getEnrichedChannels(
-      socket.user.id,
-      socket.user.isAdmin,
-      (room) => socket.join(room)
-    );
-    socket.emit('channels-list', channels);
-    // Now in every DM room: let partners know this user is here (#5574).
-    if (emitDmPresence) emitDmPresence(socket.user.id);
-    ctx.dmCalls?.snapshotFor(socket);
+  socket.on('get-channels', async () => {
+    try {
+      const channels = await (getEnrichedChannelsAsync || getEnrichedChannels)(
+        socket.user.id,
+        socket.user.isAdmin,
+        (room) => socket.join(room)
+      );
+      socket.emit('channels-list', channels);
+      // Now in every DM room: let partners know this user is here (#5574).
+      if (emitDmPresence) emitDmPresence(socket.user.id);
+      ctx.dmCalls?.snapshotFor(socket);
+    } catch (err) {
+      console.error('Channel list failed:', err.message);
+      socket.emit('error-msg', 'Could not load channels');
+    }
   });
 
   // An Organize tag as stored: trimmed, at most 30 characters, null when
