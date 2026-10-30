@@ -13,7 +13,10 @@ async switchChannel(code) {
 
   // Voice persists across channel switches, no auto-disconnect
 
+  // Each channel keeps its own unsent text (app-drafts.js).
+  this._draftStash(this.currentChannel);
   this.currentChannel = code;
+  this._draftRestore(code);
   this._typingRender?.();
   // Search panel persists per-context: hide/show it for the channel we just
   // entered (public channels share one, each DM keeps its own). (search-overhaul)

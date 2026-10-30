@@ -6,9 +6,11 @@
 
 const { groupHistoryFloor, groupHistoryFloorAsync } = require('../groupHistory');
 const forumUnread = require('../forumUnread');
+const automod = require('../automod');
+const createPermissions = require('./permissions');
 const createAsyncPermissions = require('./asyncPermissions');
 
-module.exports = function createChannelLists({ db, userHasPermission, roleGateAllows }) {
+module.exports = function createChannelLists({ db, userHasPermission, roleGateAllows, getUserEffectiveLevel = createPermissions(db).getUserEffectiveLevel }) {
   function getChannelRows(userId, isAdmin) {
     // Holders of 'view_all_channels' (e.g. a server-wide Mod role) get the
     // same visibility treatment as the admin: every non-DM channel, with
@@ -240,6 +242,17 @@ module.exports = function createChannelLists({ db, userHasPermission, roleGateAl
             ).get(userId);
             ch.dm_target = self || null;
             ch.is_self_dm = 1;
+          }
+          // Who in this DM skips the link filter: the browser checks links in
+          // encrypted messages itself, and marked an admin's links blocked.
+          try {
+            ch.link_exempt_ids = db.prepare(`
+              SELECT u.id, u.is_admin FROM users u JOIN channel_members cm ON u.id = cm.user_id WHERE cm.channel_id = ?
+            `).all(ch.id).filter(m => automod.linkExempt({ isAdmin: !!m.is_admin, effectiveLevel: getUserEffectiveLevel(m.id) })).map(m => m.id);
+          } catch (err) {
+            // Nobody counted as exempt: links are checked as before.
+            console.warn('[automod] DM exemption lookup failed:', err.message);
+            ch.link_exempt_ids = [];
           }
         }
       });
@@ -524,6 +537,21 @@ module.exports = function createChannelLists({ db, userHasPermission, roleGateAl
             ).get(userId);
             ch.dm_target = self || null;
             ch.is_self_dm = 1;
+          }
+          // Who in this DM skips the link filter: the browser checks links in
+          // encrypted messages itself, and marked an admin's links blocked.
+          try {
+            const members = await driver.prepare(`
+              SELECT u.id, u.is_admin FROM users u JOIN channel_members cm ON u.id = cm.user_id WHERE cm.channel_id = ?
+            `).all(ch.id);
+            ch.link_exempt_ids = [];
+            for (const m of members) {
+              if (automod.linkExempt({ isAdmin: !!m.is_admin, effectiveLevel: await asyncPermissions.getUserEffectiveLevel(m.id) })) ch.link_exempt_ids.push(m.id);
+            }
+          } catch (err) {
+            // Nobody counted as exempt: links are checked as before.
+            console.warn('[automod] DM exemption lookup failed:', err.message);
+            ch.link_exempt_ids = [];
           }
         }
       }

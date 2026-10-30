@@ -15,7 +15,7 @@ const vm = require('node:vm');
 
 const VOICE_SOURCE = fs.readFileSync(path.join(__dirname, '..', 'public/js/voice.js'), 'utf8');
 
-function loadVoiceManager() {
+function loadVoiceManager(globals = {}) {
   const context = vm.createContext({
     module: { exports: {} },
     navigator: { userAgent: '', platform: '', maxTouchPoints: 0 },
@@ -25,6 +25,7 @@ function loadVoiceManager() {
     MediaStream: function MediaStream(tracks) { this.tracks = tracks || []; },
     setTimeout: () => 1,
     clearTimeout: () => {},
+    ...globals,
   });
   vm.runInContext(`${VOICE_SOURCE}\nmodule.exports = VoiceManager;`, context, { filename: 'voice.js' });
   return context.module.exports;
@@ -33,6 +34,10 @@ function loadVoiceManager() {
 function viewer(VoiceManager, peer) {
   const voice = Object.create(VoiceManager.prototype);
   voice.peers = new Map([[7, peer]]);
+  voice.screenSharers = new Set();
+  voice.webcamUsers = new Set();
+  voice.screenStreamIds = new Map();
+  voice.webcamStreamIds = new Map();
   voice.shown = [];
   voice.onWebcamStream = (userId, stream) => voice.shown.push({ userId, stream });
   return voice;
@@ -69,4 +74,28 @@ test('nothing waiting, an ended track, or the screen track: no camera tile', () 
   const screen = viewer(VoiceManager, { _screenTrackId: 's', _unclaimedVideo: { track: { readyState: 'live', id: 's' } } });
   screen._claimWebcamTrack(7);
   assert.equal(screen.shown.length, 0);
+});
+
+test('switchCamera updates the local preview to the replacement stream', async () => {
+  const oldTrack = { kind: 'video', stopped: false, stop() { this.stopped = true; } };
+  const oldStream = { getTracks: () => [oldTrack] };
+  const newTrack = { kind: 'video', onended: null };
+  const newStream = { getVideoTracks: () => [newTrack] };
+  const VoiceManager = loadVoiceManager({
+    navigator: {
+      userAgent: '', platform: '', maxTouchPoints: 0,
+      mediaDevices: { getUserMedia: async () => newStream }
+    }
+  });
+  const voice = viewer(VoiceManager, {});
+  voice.peers = new Map();
+  voice.isWebcamActive = true;
+  voice.webcamStream = oldStream;
+  voice.localUserId = 42;
+
+  await voice.switchCamera('camera-2');
+
+  assert.equal(oldTrack.stopped, true, 'old camera track is stopped');
+  assert.equal(voice.webcamStream, newStream, 'VoiceManager now owns the replacement stream');
+  assert.deepEqual(voice.shown, [{ userId: 42, stream: newStream }], 'local preview is rebound to the replacement stream');
 });

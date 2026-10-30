@@ -105,6 +105,16 @@ image: ghcr.io/ancsemi/haven:beta
 
 then pull and recreate as above. With `docker run` or Podman, pull `ghcr.io/ancsemi/haven:beta` and start the container from that image instead. Your data stays as it is. To leave early access, set the line back to `:latest` once the next stable release is out, so you never move to an older version than the one you ran.
 
+### Updating Automatically
+
+The **Update Now** button in Settings can't update a Docker install: a container can't replace itself, and giving Haven control of Docker would give it control of the whole machine. To stay current without logging in, let the host do it on a schedule. On Linux (a Raspberry Pi included), run `crontab -e` and add a line like this one, with your own folder:
+
+```bash
+0 4 * * * cd /home/pi/haven && docker compose pull -q && docker compose up -d
+```
+
+That checks for a new image every night at 4:00 and restarts Haven only when there is one. It follows whichever image `docker-compose.yml` names, `:latest` or `:beta`.
+
 ### Checking Your Version
 
 Open this URL in your browser (replace with your domain/IP if needed):
@@ -1408,7 +1418,7 @@ the timestamp generators people already use work here too.
 
 | Key | Action |
 |-----|--------|
-| `Shift+Enter` | New line |
+| `Shift+Enter` | New line (on a phone or tablet, plain `Enter` is a new line and the Send button sends) |
 | `Ctrl+F` | Search messages |
 | `@` | Mention autocomplete |
 | `:` | Emoji autocomplete (type 2+ characters) |
@@ -1698,6 +1708,35 @@ All webhook endpoints are rate-limited to **30 requests per minute** per IP.
 ### Callback Payloads
 
 If your webhook has a `callback_url` and `callback_secret` configured, Haven will POST command invocations to your URL. The payload includes an HMAC signature in the `X-Haven-Signature` header that you should verify using your callback secret.
+
+### Receiving Messages
+
+A bot with a `callback_url` also hears ordinary chat: every message posted in its channel is sent to that URL as it arrives, so a bot can read what people say and answer with the Sending Messages call above. This is how assistants and chat bridges plug in. Each delivery looks like this:
+
+```
+POST <your callback_url>
+Content-Type: application/json
+X-Haven-Event: message
+X-Haven-Signature: sha256=<HMAC of the body with your callback secret>
+
+{
+  "event": "message",
+  "channelId": "<channel code>",
+  "timestamp": "2026-10-27T18:04:11.000Z",
+  "message": {
+    "id": 1234,
+    "content": "hey bot, what's the weather?",
+    "author": { "id": 7, "username": "alice" },
+    "reply_to": null,
+    "is_webhook": false,
+    "timestamp": "2026-10-27 18:04:11"
+  }
+}
+```
+
+- Bot posts (its own included) are not sent back, so a bot cannot loop on itself.
+- DMs never reach a bot, and a bot only hears its channel while the person who made it can still read that channel.
+- The callback URL must be reachable from the server. A bot on your own network (`192.168.x`, `localhost`, a sibling Docker container) needs `HAVEN_ALLOW_PRIVATE_CALLBACKS=true` in `.env`. A failed delivery is retried once, and the last result shows on the bot's card in Settings.
 
 ---
 

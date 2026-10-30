@@ -152,7 +152,7 @@
   // normalised hostname a browser would actually connect to, which is the only
   // thing worth making a policy decision about. opts.markdown: the text is a
   // chat message, so bare addresses inside code are not counted (see above).
-  var FILE_ATTACHMENT_RE = /\[file:[^\]\n]*\]\(\/uploads\/[^)\s|]*(?:\|[^)\n]*)?\)/g;
+  var FILE_ATTACHMENT_RE = /\[file:(?:[^\[\]\n]|\[[^\[\]\n]*\])*\]\(\/uploads\/[^)\s|]*(?:\|[^)\n]*)?\)/g;
   function extractUrls(rawText, opts) {
     if (typeof rawText !== 'string' || !rawText) return [];
     if (opts && opts.markdown) rawText = codeLinksOnly(rawText);

@@ -1959,19 +1959,31 @@ module.exports = function register(socket, ctx) {
   function scheduleMaxChars() {
     return parseInt(db.prepare("SELECT value FROM server_settings WHERE key = 'max_message_chars'").get()?.value) || 2000;
   }
+  // A scheduled message may carry files like a live one: the typed text is
+  // held to the limit, with room for the upload lines, and the channel has
+  // to take media. Why it cannot be queued, or null.
+  function scheduleRefusal(content, channel, isAdmin) {
+    const why = sizeRefusal(content, channel, { maxChars: scheduleMaxChars(), maxAttachments: maxAttachmentsSetting() });
+    if (why) return why;
+    const media = mediaGroup.hasMedia(content);
+    if (channel.text_enabled === 0 && !(media && mediaGroup.isMediaOnly(content))) return 'Text messages are disabled in this channel';
+    if (media && channel.media_enabled === 0 && !isAdmin) return 'Media uploads are disabled in this channel';
+    return null;
+  }
 
   socket.on('schedule-message', (data, callback) => {
     const cb = typeof callback === 'function' ? callback : () => {};
     if (!data || typeof data !== 'object') return cb({ error: 'Invalid request' });
     const code = typeof data.code === 'string' ? data.code.trim() : '';
     if (!/^[a-f0-9]{8}$/i.test(code)) return cb({ error: 'Invalid channel' });
-    if (!isString(data.content, 1, scheduleMaxChars())) return cb({ error: 'Nothing to send, or the message is too long' });
+    if (!isString(data.content, 1, sizeCeiling(scheduleMaxChars()))) return cb({ error: 'Nothing to send, or the message is too long' });
     const sendAt = parseSendAt(data.sendAt);
     if (!sendAt) return cb({ error: `Pick a time in the future, up to ${SCHEDULE_MAX_DAYS} days away` });
-    const channel = db.prepare('SELECT id, is_dm, read_only, text_enabled FROM channels WHERE code = ?').get(code);
+    const channel = db.prepare('SELECT id, is_dm, read_only, text_enabled, media_enabled FROM channels WHERE code = ?').get(code);
     if (!channel) return cb({ error: 'Channel not found' });
     if (channel.is_dm) return cb({ error: 'Scheduled sends are not available in direct messages' });
-    if (channel.text_enabled === 0) return cb({ error: 'Text messages are disabled in this channel' });
+    const refusal = scheduleRefusal(data.content.trim(), channel, socket.user.isAdmin);
+    if (refusal) return cb({ error: refusal });
     if (!hasChannelAccess(channel.id)) return cb({ error: 'Not a member of this channel' });
     if (channel.read_only === 1 && !socket.user.isAdmin && !userHasPermission(socket.user.id, 'read_only_override', channel.id)) return cb({ error: 'This channel is read-only' });
     const mute = activeMuteNotice(socket.user.id);
@@ -2003,11 +2015,14 @@ module.exports = function register(socket, ctx) {
     if (!data || typeof data !== 'object' || !isInt(data.id)) return cb({ error: 'Invalid request' });
     const row = db.prepare('SELECT id, channel_id FROM scheduled_messages WHERE id = ? AND user_id = ?').get(data.id, socket.user.id);
     if (!row) return cb({ error: 'That scheduled message is gone' });
-    if (!isString(data.content, 1, scheduleMaxChars())) return cb({ error: 'Nothing to send, or the message is too long' });
+    if (!isString(data.content, 1, sizeCeiling(scheduleMaxChars()))) return cb({ error: 'Nothing to send, or the message is too long' });
     const sendAt = parseSendAt(data.sendAt);
     if (!sendAt) return cb({ error: `Pick a time in the future, up to ${SCHEDULE_MAX_DAYS} days away` });
     const content = sanitizeText(data.content.trim());
     if (!content) return cb({ error: 'Nothing to send' });
+    const chRow = db.prepare('SELECT id, is_dm, text_enabled, media_enabled FROM channels WHERE id = ?').get(row.channel_id);
+    const refusal = chRow ? scheduleRefusal(content, chRow, socket.user.isAdmin) : 'Channel not found';
+    if (refusal) return cb({ error: refusal });
     if (enforceAutomod(content, { surface: 'edit', channelId: row.channel_id, markdown: true })) return cb({ error: 'That message was blocked' });
     db.prepare('UPDATE scheduled_messages SET content = ?, send_at = ? WHERE id = ?').run(content, sendAt, row.id);
     cb({ success: true, items: scheduledList(socket.user.id) });
@@ -2039,12 +2054,16 @@ module.exports = function register(socket, ctx) {
           const member = db.prepare('SELECT 1 FROM channel_members WHERE channel_id = ? AND user_id = ?').get(row.channel_id, row.user_id);
           if (!author || !member) continue;
           // The rules at the moment it goes out, not when it was queued: a
-          // ban or a mute since then, a channel gone read-only or text-off,
-          // required roles lost, or mention_everyone taken away all count.
+          // ban or a mute since then, a channel gone read-only, text-off or
+          // media-off, required roles lost, or mention_everyone taken away
+          // all count.
           if (db.prepare('SELECT 1 FROM bans WHERE user_id = ?').get(author.id)) continue;
           if (activeMuteNotice(author.id)) continue;
-          const chNow = db.prepare('SELECT id, read_only, text_enabled, role_gate FROM channels WHERE id = ?').get(row.channel_id);
-          if (!chNow || chNow.text_enabled === 0) continue;
+          const chNow = db.prepare('SELECT id, read_only, text_enabled, media_enabled, role_gate FROM channels WHERE id = ?').get(row.channel_id);
+          if (!chNow) continue;
+          const media = mediaGroup.hasMedia(row.content);
+          if (chNow.text_enabled === 0 && !(media && mediaGroup.isMediaOnly(row.content))) continue;
+          if (media && chNow.media_enabled === 0 && !author.is_admin) continue;
           if (!author.is_admin && chNow.read_only === 1 && !userHasPermission(author.id, 'read_only_override', chNow.id)) continue;
           if (!author.is_admin && !ctx.roleGateAllows(author.id, chNow)) continue;
           // A scheduled "@silent" message goes out silent too.

@@ -562,7 +562,14 @@
     "music_shared_spotify": "Spotify (über YouTube) – geteilt von {{user}}",
     "music_shared": "{{platform}} – geteilt von {{user}}",
     "music": "Musik",
-    "someone": "jemand"
+    "someone": "jemand",
+    "music_file_platform": "Audiodatei",
+    "music_file_listen": "Für alle im Sprachkanal abspielen",
+    "music_file_join_voice": "Tritt einem Sprachkanal bei, um das dort für alle abzuspielen",
+    "music_file_failed": "Diese Audiodatei konnte nicht abgespielt werden",
+    "music_yt_gone": "YouTube meldet, dass dieses Video weg ist",
+    "music_yt_blocked": "YouTube spielt dieses Video hier nicht ab (Einbetten ist abgeschaltet oder es ist in diesem Land gesperrt)",
+    "music_yt_failed": "YouTube konnte dieses Video nicht abspielen"
   },
   "channels": {
     "status_none": "Keine",
@@ -851,6 +858,7 @@
     "select_channel_first": "Zuerst einen Kanal auswählen",
     "uploads_disabled": "Medien-Uploads sind in diesem Kanal deaktiviert",
     "file_too_large": "Datei zu groß (max. {{maxMb}} MB)",
+    "file_type_blocked": ".{{ext}}-Dateien können auf diesem Server nicht hochgeladen werden",
     "server_banner_alt": "Serverbanner",
     "server_icon_alt": "Serversymbol",
     "open_fullscreen": "Im Vollbild öffnen",
@@ -1069,7 +1077,9 @@
     "output_unsupported_title": "Dein Browser unterstützt das Wechseln des Audioausgabegeräts nicht. Wähle das Ausgabegerät in den Soundeinstellungen deines Betriebssystems aus.",
     "output_unsupported_hint": "Dein Browser kann das Audioausgabegerät nicht wechseln. Nutze stattdessen die Soundeinstellungen deines Betriebssystems.",
     "bitrate": "Bitrate",
-    "bitrate_unlimited": "Unbegrenzt"
+    "bitrate_unlimited": "Unbegrenzt",
+    "camera_quality": "Kameraqualität",
+    "camera_quality_hint": "Höhere Qualität sieht schärfer aus, braucht aber mehr Bandbreite, bei dir und allen Zuschauern. Deine Kamera schafft vielleicht weniger."
   },
   "status_bar": {
     "server": "Server",
@@ -1156,7 +1166,26 @@
       "group_advanced": "Erweitert",
       "debug": "Debug",
       "backup": "Sicherung",
-      "audit_log": "Prüfprotokoll"
+      "audit_log": "Prüfprotokoll",
+      "whats_new": "Neuigkeiten"
+    },
+    "pages": {
+      "look": "Darstellung",
+      "chat": "Chat & Medien",
+      "alerts": "Benachrichtigungen",
+      "profile": "Profil & Aktivität",
+      "security": "Konto & Sicherheit",
+      "language": "Sprache",
+      "access": "Barrierefreiheit",
+      "advanced": "Plugins & Erweitert",
+      "server": "Server",
+      "people": "Personen & Rollen",
+      "safety": "Sicherheit",
+      "content": "Inhalte",
+      "network": "Netzwerk & Skalierung",
+      "tools": "Bots & Daten",
+      "more": "Mehr",
+      "more_info": "Mehr Infos"
     },
     "language_section": {
       "title": "Sprache",
@@ -1488,6 +1517,9 @@
       "max_sound_hint": "Max. Soundboard-Upload-Größe (256–10240 KB, Standard 1024 / 1 MB)",
       "max_emoji_hint": "Max. benutzerdefinierte Emoji-Upload-Größe (64–1024 KB, Standard 256)",
       "max_poll_hint": "Maximale Antwortmöglichkeiten pro Umfrage (2–25, Standard 10)",
+      "blocked_upload_types": "Gesperrte Dateitypen",
+      "blocked_upload_types_hint": "Dateien dieser Typen kann niemand hochladen. Mit Kommas trennen. Häufig riskant: exe, msi, bat, cmd, com, scr, ps1, vbs, dll, jar. Leer lassen, um alle Typen zu erlauben.",
+      "blocked_upload_types_placeholder": "exe, bat, dll",
       "max_invite_uses": "Maximale Anzahl der Einladungslink-Nutzungen",
       "max_invite_uses_hint": "Die maximale Anzahl von Nutzungen, auf die ein Einladungslink festgelegt werden kann. Administratoren und Benutzer mit der Berechtigung zur Serververwaltung ignorieren dieses Limit. (0 = unbegrenzt)",
       "sounds_hint": "Audiodateien für benutzerdefinierte Benachrichtigungstöne hochladen",
@@ -1843,6 +1875,10 @@
       "update_hint": "Suche nach neuen Haven-Versionen und installiere sie direkt. Der Server erstellt automatisch eine Sicherung vor dem Update und startet sich anschließend neu.",
       "update_check_btn": "Nach Updates suchen",
       "update_run_btn": "Jetzt aktualisieren",
+      "shutdown_btn": "Server herunterfahren",
+      "shutdown_hint": "Beendet Haven sauber, wie Strg+C. Starte es danach wie gewohnt neu. Startet Docker oder ein Dienstmanager Haven von selbst neu, wird es stattdessen neu gestartet.",
+      "shutdown_confirm": "Server jetzt herunterfahren? Alle werden getrennt, bis er wieder gestartet wird.",
+      "shutdown_sent": "Der Server fährt herunter.",
       "update_checking": "Suche läuft …",
       "update_run_on_host": "Auf dem Host ausführen:",
       "update_copy_command": "Befehl kopieren",
@@ -1926,6 +1962,9 @@
       "automod_log_channel_placeholder": "Kanalcode (optional)",
       "automod_activity_group": "Letzte Aktivität",
       "automod_refresh": "Aktualisieren",
+      "automod_ai_group": "KI-Linkprüfung (experimentell)",
+      "automod_ai_enabled": "Dem Plugin AutoMod Quarantine erlauben, diesen Server zu nutzen",
+      "automod_ai_hint": "Experimentell. Standardmäßig aus. Schaltet die Serverseite des Plugins AutoMod Quarantine ein: Links werden mit einem KI-Modell auf diesem Server geprüft (eingerichtet mit scripts/setup-automod-ai.sh), und Anfragen von Moderatoren werden an Cloud-KI-Dienste weitergereicht, die Browser ablehnen. An eine KI geht immer nur der Link, nie die Nachricht. Mitglieder entscheiden weiterhin selbst, ob sie das Plugin unter Plugins & Themes einschalten.",
       "automod_no_domains": "Noch keine Domains eingerichtet.",
       "automod_block_badge": "GESPERRT",
       "automod_allow_badge": "ZUGELASSEN",
@@ -2504,7 +2543,25 @@
       "blur": "NSFW-Themen bis zum Anklicken unscharf darstellen",
       "blur_hint": "Bild und Vorschau eines mit 🔞 markierten Themas werden wie ein Spoiler unscharf dargestellt. Deaktiviere diese Option, um sie direkt zu sehen."
     },
-    "search_placeholder": "Einstellungen durchsuchen (Strg+F)"
+    "search_placeholder": "Einstellungen durchsuchen (Strg+F)",
+    "accessibility": {
+      "emoji": {
+        "title": "Emoji",
+        "system": "Emoji deines Geräts",
+        "twemoji": "Twemoji",
+        "hint": "Twemoji zeichnet Emoji auf jedem Gerät gleich, mit einer Schrift, die Haven selbst bereitstellt."
+      }
+    },
+    "whats_new": {
+      "title": "Neuigkeiten",
+      "show_label": "Neuigkeiten zeigen nach",
+      "all": "Jedem Update",
+      "minor": "Neuen Funktionen",
+      "major": "Nur großen Updates",
+      "off": "Nie",
+      "hint": "Eine Versionsnummer hat drei Teile: ein großes Update ändert den ersten, neue Funktionen den zweiten, Fehlerbehebungen den dritten. Ändert sich ein unterstrichener Teil, erscheinen die Versionshinweise. Auf diesem Gerät gespeichert.",
+      "show_now": "Neuigkeiten dieser Version ansehen"
+    }
   },
   "modals": {
     "common": {
@@ -3163,7 +3220,9 @@
       "not_here": "„Später senden“ ist für Direktnachrichten nicht verfügbar",
       "scheduled": "Geplant für {{when}}",
       "updated": "Aktualisiert, Versand um {{when}}",
-      "sent": "Deine geplante Nachricht wurde in #{{channel}} gesendet"
+      "sent": "Deine geplante Nachricht wurde in #{{channel}} gesendet",
+      "attach": "📎 Dateien anhängen",
+      "remove_file": "Entfernen"
     },
     "self_destruct": {
       "title": "Selbstzerstörende Nachricht",
@@ -4227,5 +4286,10 @@
   "groups": {
     "no_key": "🔒 Wartet darauf, dass ein anderes Gruppenmitglied Haven öffnet und den Schlüssel teilt",
     "before_join": "🔒 Gesendet, bevor du beigetreten bist (oder bevor deine Schlüssel zurückgesetzt wurden), kann hier nicht geöffnet werden"
+  },
+  "whats_new": {
+    "title": "Neu in Haven {{version}}",
+    "settings_hint": "Unter Einstellungen > Neuigkeiten wählst du, wann das erscheint.",
+    "unavailable": "Die Versionshinweise sind auf diesem Server nicht verfügbar."
   }
 }

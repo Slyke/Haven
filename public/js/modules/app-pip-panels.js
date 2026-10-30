@@ -37,7 +37,7 @@ _bindThreadAndDmPanels() {
     // Autocomplete navigation/insert hijacks first. (#5296)
     if (this._handleAutocompleteKeydown(e)) return;
     if (this._composerListKey(e, dmPipInput)) return;
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && this._enterSends(e)) {
       e.preventDefault();
       this._sendDMPiPMessage?.();
       return;
@@ -262,7 +262,7 @@ _bindThreadAndDmPanels() {
       // Autocomplete navigation/insert hijacks first. (#5296)
       if (this._handleAutocompleteKeydown(e)) return;
       if (this._composerListKey(e, threadInput)) return;
-      if (e.key === 'Enter' && !e.shiftKey) {
+      if (e.key === 'Enter' && !e.shiftKey && this._enterSends(e)) {
         e.preventDefault();
         this._sendThreadMessage();
         return;

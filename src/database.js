@@ -411,6 +411,8 @@ function initDatabase() {
   insertSetting.run('max_attachments', '10');           // files one message may queue, images and other files together (1-50) (#5561)
   insertSetting.run('max_tags_per_attachment', '3');    // upload tags allowed on one attachment (1-20) (#tagging phase 4)
   insertSetting.run('max_tag_len', '20');               // max characters in an upload tag name (1-50) (#tagging phase 4)
+  insertSetting.run('automod_ai_enabled', 'false');      // experimental AutoMod Quarantine AI link checks, off until an admin opts in
+  insertSetting.run('blocked_upload_extensions', '');      // (#5833) file types members cannot upload, e.g. "exe,bat"
   insertSetting.run('max_poll_options', '10');            // max poll answer options (2-25)
   insertSetting.run('max_message_chars', '2000');         // max characters per message (200-100000)
   insertSetting.run('max_avatar_mb', '2');               // max profile picture / border / persona avatar size in MB (1-10)
@@ -540,6 +542,14 @@ function initDatabase() {
     }
   } catch (err) {
     console.error('automod: adding klipy.com to the allowlist failed:', err.message);
+  }
+
+  // Mutes made through the bot or HTTP API were stored as ISO times, which
+  // the mute checks misread as lasting until the next day. Cheap to repeat.
+  try {
+    db.prepare("UPDATE mutes SET expires_at = datetime(expires_at) WHERE expires_at LIKE '%T%'").run();
+  } catch (err) {
+    console.error('mutes: normalizing expiry times failed:', err.message);
   }
 
   // ── Migration: turn the safe protections on, once (v3.43.0) ──

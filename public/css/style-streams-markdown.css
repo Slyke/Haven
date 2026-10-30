@@ -1319,12 +1319,12 @@ ul.chat-list { list-style-type: disc; }
 
 /* Keep playing pin (app-media-playback.js): faint until hovered or pinned,
    and gone while pausing scrolled-away media is switched off. */
-.media-keep, .media-loop {
+.media-keep, .media-loop, .media-listen {
   margin-left: 0.375rem; padding: 0 0.25rem; border: 1px solid transparent; border-radius: var(--radius-sm, 4px);
   background: none; font-size: 0.8rem; line-height: 1.4; cursor: pointer; opacity: 0.35; filter: grayscale(1);
   vertical-align: middle;
 }
-.media-keep:hover, .media-keep:focus-visible, .media-loop:hover, .media-loop:focus-visible { opacity: 0.85; }
+.media-keep:hover, .media-keep:focus-visible, .media-loop:hover, .media-loop:focus-visible, .media-listen:hover, .media-listen:focus-visible { opacity: 0.85; }
 .media-keep[aria-pressed="true"], .media-loop[aria-pressed="true"] { opacity: 1; filter: none; border-color: var(--accent); }
 body.pause-offscreen-off .media-keep { display: none; }
 

@@ -451,6 +451,8 @@ _applyServerSettings() {
     if (maxPollOpts) {
       maxPollOpts.value = this.serverSettings.max_poll_options || '10';
     }
+    const blockedTypes = document.getElementById('blocked-upload-types');
+    if (blockedTypes) blockedTypes.value = (this.serverSettings.blocked_upload_extensions || '').split(',').filter(Boolean).join(', ');
     const sessionDur = document.getElementById('session-duration-days');
     if (sessionDur) {
       // Default to '0' (never) for new installs. Existing servers seeded with
@@ -564,6 +566,8 @@ _applyServerSettings() {
   if (tokenToggle) tokenToggle.checked = this.serverSettings.registration_token_enabled === 'true';
   const invBpsTokenToggle = document.getElementById('invites-bypass-registration-token');
   if (invBpsTokenToggle) invBpsTokenToggle.checked = this.serverSettings.invites_bypass_registration_token === 'true';
+  const automodAiToggle = document.getElementById('automod-ai-enabled');
+  if (automodAiToggle) automodAiToggle.checked = this.serverSettings.automod_ai_enabled === 'true';
 
   // These save with the Save button, so leave them alone while the panel is
   // open: the token switches above save at once, and the refresh that follows
@@ -919,6 +923,7 @@ _snapshotAdminSettings() {
     max_emoji_kb: this.serverSettings.max_emoji_kb || '256',
     max_sticker_kb: this.serverSettings.max_sticker_kb || '1024',
     max_poll_options: this.serverSettings.max_poll_options || '10',
+    blocked_upload_extensions: this.serverSettings.blocked_upload_extensions || '',
     session_duration_days: this.serverSettings.session_duration_days || '7',
     max_message_chars: this.serverSettings.max_message_chars || '2000',
     auto_away_visible_minutes: this.serverSettings.auto_away_visible_minutes || '5',
@@ -1125,6 +1130,16 @@ _saveAdminSettings() {
   if (maxPollOpts !== (snap.max_poll_options || '10')) {
     this.socket.emit('update-server-setting', { key: 'max_poll_options', value: maxPollOpts });
     changed = true;
+  }
+
+  // Blocked file types (#5833): the server cleans the list up
+  const blockedTypesEl = document.getElementById('blocked-upload-types');
+  if (blockedTypesEl) {
+    const blockedTypes = blockedTypesEl.value.split(/[\s,;]+/).map(s => s.toLowerCase().replace(/^\*?\./, '')).filter(Boolean).join(',');
+    if (blockedTypes !== (snap.blocked_upload_extensions || '')) {
+      this.socket.emit('update-server-setting', { key: 'blocked_upload_extensions', value: blockedTypes });
+      changed = true;
+    }
   }
 
   // session_duration_days: 0 means "never expire"; 1 to 365 days otherwise (#5391)
@@ -1364,6 +1379,8 @@ _cancelAdminSettings() {
     if (mstk) mstk.value = snap.max_sticker_kb || '1024';
     const mpo = document.getElementById('max-poll-options');
     if (mpo) mpo.value = snap.max_poll_options || '10';
+    const but = document.getElementById('blocked-upload-types');
+    if (but) but.value = (snap.blocked_upload_extensions || '').split(',').filter(Boolean).join(', ');
     const sdd = document.getElementById('session-duration-days');
     if (sdd) sdd.value = snap.session_duration_days ?? '0';
     const mmc = document.getElementById('max-message-chars');

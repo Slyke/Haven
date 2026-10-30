@@ -90,4 +90,7 @@ test('an uploaded file whose name looks like a site is not a link', () => {
   // anywhere but this server's uploads still counts.
   assert.ok(blocked('[file:clip.mp4](/uploads/a.mp4|1 MB) https://evil.com/x', chat));
   assert.ok(blocked('[file:clip.mp4](https://evil.com/a.mp4)', chat));
+  assert.equal(blocked('[file:fxtwitter.com [720p].mp4](/uploads/1760724512502-ab12cd34.mp4|4.2 MB)', chat), null);
+  assert.equal(blocked('[file:ssstwitter.com_1 (1) [HD] [2].mp4](/uploads/a.mp4|1 MB)', chat), null);
+  assert.ok(blocked('[file:x] evil.com [y](/uploads/a.txt|1 KB)', chat));
 });

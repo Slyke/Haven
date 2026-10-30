@@ -676,7 +676,14 @@
       "soundboard": "Soundboard",
       "listen_together": "Listen Together",
       "settings": "Voice Settings"
-    }
+    },
+    "music_file_platform": "Audio file",
+    "music_file_listen": "Play for everyone in voice",
+    "music_file_join_voice": "Join a voice channel to play this for everyone there",
+    "music_file_failed": "This audio file could not be played",
+    "music_yt_gone": "YouTube says this video is gone",
+    "music_yt_blocked": "YouTube will not play this video here (the uploader turned off embedding, or it is blocked in this country)",
+    "music_yt_failed": "YouTube could not play this video"
   },
   "calls": {
     "incoming": "Incoming call",
@@ -1079,6 +1086,7 @@
     "uploads_disabled": "Media uploads are disabled in this channel",
     "soundboard_disabled": "The soundboard is turned off for this channel",
     "file_too_large": "File too large (max {{maxMb}} MB)",
+    "file_type_blocked": ".{{ext}} files can't be uploaded on this server",
     "image_too_large": "Image too large (max {{maxMb}} MB)",
     "max_images": "Max 5 images at once",
     "max_files": "Max 5 files at once",
@@ -1444,7 +1452,9 @@
     "frame_rate": "Frame Rate",
     "bitrate": "Bitrate",
     "bitrate_unlimited": "Unlimited",
-    "camera_fallback": "Camera {{n}}"
+    "camera_fallback": "Camera {{n}}",
+    "camera_quality": "Camera Quality",
+    "camera_quality_hint": "Higher quality looks sharper but uses more bandwidth, for you and everyone watching. Your camera may top out lower."
   },
   "notifications_runtime": {
     "title": "{{sender}} in {{channel}}",
@@ -1603,7 +1613,26 @@
       "debug": "Debug",
       "backup": "Backup",
       "template": "Server Template",
-      "audit_log": "Audit Log"
+      "audit_log": "Audit Log",
+      "whats_new": "What's New"
+    },
+    "pages": {
+      "look": "Appearance",
+      "chat": "Chat & media",
+      "alerts": "Notifications",
+      "profile": "Profile & activity",
+      "security": "Account & security",
+      "language": "Language",
+      "access": "Accessibility",
+      "advanced": "Plugins & advanced",
+      "server": "Server",
+      "people": "People & roles",
+      "safety": "Safety",
+      "content": "Content",
+      "network": "Network & scale",
+      "tools": "Bots & data",
+      "more": "More",
+      "more_info": "More info"
     },
     "localization_section": {
       "title": "Localization"
@@ -1725,6 +1754,12 @@
         "underline_links": "Underline links",
         "large_targets": "Larger click targets",
         "large_targets_hint": "Bigger buttons and taller rows in the sidebars, the message box and the message actions."
+      },
+      "emoji": {
+        "title": "Emoji",
+        "system": "Your device's emoji",
+        "twemoji": "Twemoji",
+        "hint": "Twemoji draws emoji the same on every device, from a font Haven serves itself."
       }
     },
     "reaction_size": {
@@ -2174,6 +2209,10 @@
       "update_hint": "Check for new Haven releases and apply them in place. The server will create a pre-update backup automatically and restart itself.",
       "update_check_btn": "Check for Updates",
       "update_run_btn": "Update Now",
+      "shutdown_btn": "Shut Down Server",
+      "shutdown_hint": "Stops Haven cleanly, the same as Ctrl+C. Start it again the way you usually do. If Docker or a service manager restarts Haven on its own, this restarts it instead.",
+      "shutdown_confirm": "Shut down the server now? Everyone is disconnected until it is started again.",
+      "shutdown_sent": "The server is shutting down.",
       "update_checking": "Checking…",
       "update_run_on_host": "Run on host:",
       "update_copy_command": "Copy command",
@@ -2274,6 +2313,9 @@
       "automod_log_channel_placeholder": "channel code (optional)",
       "automod_activity_group": "Recent activity",
       "automod_refresh": "Refresh",
+      "automod_ai_group": "AI link checks (experimental)",
+      "automod_ai_enabled": "Let the AutoMod Quarantine plugin use this server",
+      "automod_ai_hint": "Experimental. Off by default. Turns on the server side of the AutoMod Quarantine plugin: checking links with an AI model running on this server (set up with scripts/setup-automod-ai.sh), and passing moderators' requests on to cloud AI services that refuse browsers. Only the link is ever sent to an AI, never the message. Members still choose whether to turn the plugin on in Plugins & Themes.",
       "bulk_preview_failed": "Preview failed",
       "mention_everyone_desc": "Notify everyone in the channel",
       "mention_here_desc": "Notify online members",
@@ -2749,6 +2791,9 @@
       "max_avatar_hint": "Largest profile picture, border or persona picture someone can upload (1 to 10 MB, default 2). Animated GIFs are often over 2 MB, but every picture is loaded next to every message its owner sends, so keep this as low as you can.",
       "max_emoji_hint": "Max custom emoji upload size (64-1024 KB, default 256)",
       "max_poll_hint": "Maximum answer choices per poll (2-25, default 10)",
+      "blocked_upload_types": "Blocked file types",
+      "blocked_upload_types_hint": "Files of these types can't be uploaded, by anyone. Separate them with commas. Common risky ones: exe, msi, bat, cmd, com, scr, ps1, vbs, dll, jar. Leave empty to allow every type.",
+      "blocked_upload_types_placeholder": "exe, bat, dll",
       "max_message_chars_hint": "Maximum characters per message, post, or DM (200-100000, default 2000)",
       "max_invite_uses": "Max invite link uses",
       "max_invite_uses_hint": "The maximum number of uses an invite link can be set to. Admin and manage-server permission ignore this limit. (0 = unlimited)",
@@ -3144,7 +3189,17 @@
       "blur": "Blur NSFW topics and messages until clicked",
       "blur_hint": "Topics and messages marked 🔞 sit behind a blur, like a spoiler. Turn this off to see them plainly."
     },
-    "search_placeholder": "Search settings (Ctrl+F)"
+    "search_placeholder": "Search settings (Ctrl+F)",
+    "whats_new": {
+      "title": "What's New",
+      "show_label": "Show what's new after",
+      "all": "Every update",
+      "minor": "New features",
+      "major": "Big updates only",
+      "off": "Never",
+      "hint": "A version number has three parts: a big update changes the first, new features the second, and fixes the third. When an underlined part changes, you get a popup with the release notes. Saved on this device.",
+      "show_now": "See what's new in this version"
+    }
   },
   "modals": {
     "timezone": {
@@ -3486,7 +3541,9 @@
       "not_here": "Send later is not available in direct messages",
       "scheduled": "Scheduled for {{when}}",
       "updated": "Updated, sending at {{when}}",
-      "sent": "Your scheduled message went out in #{{channel}}"
+      "sent": "Your scheduled message went out in #{{channel}}",
+      "attach": "📎 Attach files",
+      "remove_file": "Remove"
     },
     "self_destruct": {
       "title": "Self-destructing message",
@@ -4026,7 +4083,8 @@
         "webhook_delete": "deleted bot",
         "webhook_update": "changed bot",
         "whitelist_add": "added to the whitelist:",
-        "whitelist_remove": "removed from the whitelist:"
+        "whitelist_remove": "removed from the whitelist:",
+        "server_shutdown": "shut the server down"
       },
       "exporting": "Exporting...",
       "on": "on",
@@ -4919,5 +4977,10 @@
       "none": "There are no hand-given badges yet. Make one in Settings, Admin, Badges.",
       "switched_off": "switched off"
     }
+  },
+  "whats_new": {
+    "title": "What's new in Haven {{version}}",
+    "settings_hint": "Settings > What's New picks which updates show this.",
+    "unavailable": "The release notes aren't available on this server."
   }
 }

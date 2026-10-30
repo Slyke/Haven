@@ -509,6 +509,19 @@ module.exports = function registerMaintenance(deps) {
     }
   });
 
+  // Shut down from Settings (TGS): the same clean stop as Ctrl+C or SIGTERM,
+  // for a server started in tmux, or restarted by an in-app update, where
+  // Ctrl+C no longer reaches it.
+  app.post('/api/admin/shutdown', (req, res) => {
+    const token = req.headers.authorization?.split(' ')[1];
+    const user = token ? verifyToken(token) : null;
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    if (!verifyAdminFromDb(user)) return res.status(403).json({ error: 'Admin only' });
+    auditHttp(user, 'server_shutdown');
+    res.json({ ok: true });
+    setTimeout(() => late.shutdown?.('admin'), 500);
+  });
+
   app.post('/api/admin/update/run', (req, res) => {
     const token = req.headers.authorization?.split(' ')[1];
     const user = token ? verifyToken(token) : null;

@@ -285,6 +285,7 @@ function releasableUploads(db, relPaths, ownerIds, { ignoreMessagesAfter = null 
       OR EXISTS(SELECT 1 FROM custom_sounds WHERE filename = @f)
       OR EXISTS(SELECT 1 FROM custom_emojis WHERE filename = @f)
       OR EXISTS(SELECT 1 FROM stickers WHERE filename = @f)
+      OR EXISTS(SELECT 1 FROM scheduled_messages WHERE instr(content, @p) > 0)
   `);
   const out = [];
   for (const relPath of new Set(relPaths || [])) {

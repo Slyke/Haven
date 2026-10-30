@@ -115,6 +115,15 @@ function enabled() { return settings().automod_enabled === 'true'; }
 // Build the plain-object policy the shared rules module consumes. This is the
 // same shape sent to clients over the socket, so both sides evaluate against
 // byte-identical input.
+// Admins, and people at or above "Skip filtering at role level", are never
+// filtered. The browser checks links in encrypted DMs itself, so it is told
+// who in a DM this covers (socketHandlers/index.js).
+function linkExempt({ isAdmin, effectiveLevel }) {
+  if (isAdmin) return true;
+  const exemptLevel = parseInt(settings().automod_link_exempt_level, 10);
+  return Number.isFinite(exemptLevel) && exemptLevel >= 0 && Number.isFinite(effectiveLevel) && effectiveLevel >= exemptLevel;
+}
+
 function policy() {
   const s = settings();
   return {
@@ -384,5 +393,6 @@ module.exports = {
   recordInfraction,
   escalationConfig,
   policy,
+  linkExempt,
   DEFAULTS
 };

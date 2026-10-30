@@ -4,40 +4,43 @@
 //           notifications, volume sliders, status bar
 // ═══════════════════════════════════════════════════════════
 
-import SocketMethods   from './modules/app-socket.js?v=4.26.5';
-import SocketChannelMethods from './modules/app-socket-channels.js?v=4.26.11';
+import SocketMethods   from './modules/app-socket.js?v=4.27.25';
+import SocketChannelMethods from './modules/app-socket-channels.js?v=4.27.26';
 import SocketEventMethods from './modules/app-socket-events.js?v=4.26.14';
-import UIBindMethods   from './modules/app-ui.js?v=4.26.17';
-import ComposerMethods from './modules/app-composer.js?v=4.25.26';
+import UIBindMethods   from './modules/app-ui.js?v=4.27.37';
+import ComposerMethods from './modules/app-composer.js?v=4.27.28';
+import ScheduleFileMethods from './modules/app-schedule-files.js?v=4.27.24';
+import DraftMethods from './modules/app-drafts.js?v=4.27.25';
+import WhatsNewMethods from './modules/app-whats-new.js?v=4.27.25';
 import ComposerListMethods from './modules/app-composer-lists.js?v=4.22.22';
 import ChannelMenuMethods from './modules/app-channel-menu.js?v=4.26.5';
-import VoiceControlMethods from './modules/app-voice-controls.js?v=4.25.22';
+import VoiceControlMethods from './modules/app-voice-controls.js?v=4.27.22';
 import MediaGalleryMethods from './modules/app-media-gallery.js?v=4.26.8';
 import MessageActionMethods from './modules/app-message-actions.js?v=4.26.9';
-import PipPanelMethods from './modules/app-pip-panels.js?v=4.26.13';
+import PipPanelMethods from './modules/app-pip-panels.js?v=4.26.14';
 import PeopleMethods from './modules/app-people.js?v=4.25.28';
 import SettingsMethods from './modules/app-settings.js?v=4.23.9';
-import AdminControlMethods from './modules/app-admin-controls.js?v=4.27.3';
+import AdminControlMethods from './modules/app-admin-controls.js?v=4.27.32';
 import AdminReauthMethods from './modules/app-admin-reauth.js?v=4.23.8';
 import ExtensionUpdateMethods from './modules/app-extension-updates.js?v=4.17.18';
 import ServerBarMethods from './modules/app-server-bar.js?v=4.23.9';
 import MobileMethods from './modules/app-mobile.js?v=4.24.24';
 import MediaMethods    from './modules/app-media.js?v=4.27.5';
 import ImageZoomMethods from './modules/app-image-zoom.js?v=4.25.20';
-import MediaGridMethods from './modules/app-media-grid.js?v=4.26.17';
+import MediaGridMethods from './modules/app-media-grid.js?v=4.27.31';
 import FeedAnchorMethods from './modules/app-feed-anchor.js?v=4.25.26';
 import AttachmentMethods from './modules/app-attachments.js?v=4.26.17';
 import AvatarEditorMethods from './modules/app-avatar-editor.js?v=4.25.28';
 import AppearanceMethods from './modules/app-appearance.js?v=4.27.7';
-import AccessibilityMethods from './modules/app-accessibility.js?v=4.22.3';
+import AccessibilityMethods from './modules/app-accessibility.js?v=4.27.19';
 import SoundMethods from './modules/app-sounds.js?v=4.25.21';
 import EmojiStickerMethods from './modules/app-emoji-stickers.js?v=4.21.0';
 import BotMethods from './modules/app-bots.js?v=4.23.9';
 import ContextMethods  from './modules/app-context.js?v=4.27.10';
-import ChannelMethods  from './modules/app-channels.js?v=4.25.8';
-import ChannelContextMethods from './modules/app-channel-context.js?v=4.25.22';
+import ChannelMethods  from './modules/app-channels.js?v=4.27.25';
+import ChannelContextMethods from './modules/app-channel-context.js?v=4.27.35';
 import ChannelOrganizeMethods from './modules/app-channel-organize.js?v=4.25.11';
-import ChannelUnreadMethods from './modules/app-channel-unread.js?v=4.24.32';
+import ChannelUnreadMethods from './modules/app-channel-unread.js?v=4.27.26';
 import MessageMethods  from './modules/app-messages.js?v=4.27.7';
 import LinkPreviewMethods from './modules/app-link-previews.js?v=4.26.9';
 import MessageToolMethods from './modules/app-message-tools.js?v=4.26.14';
@@ -49,14 +52,15 @@ import ThemePickerMethods from './modules/app-theme-picker.js?v=4.25.30';
 import PushToMuteMethods from './modules/app-push-to-mute.js?v=4.24.5';
 import ScreenWebcamMethods from './modules/app-screen-webcam.js?v=4.24.20';
 import StreamTileMethods from './modules/app-stream-tiles.js?v=4.23.9';
-import MusicMethods from './modules/app-music.js?v=4.24.19';
+import MusicMethods from './modules/app-music.js?v=4.27.17';
+import MusicFileMethods from './modules/app-music-file.js?v=4.27.34';
 import MusicKeyMethods from './modules/app-music-keys.js?v=4.24.19';
 import UtilityMethods  from './modules/app-utilities.js?v=4.27.14';
-import MessageContentMethods from './modules/app-message-content.js?v=4.26.18';
+import MessageContentMethods from './modules/app-message-content.js?v=4.27.33';
 import EmojiPickerMethods from './modules/app-emoji-picker.js?v=4.25.2';
 import GifPickerMethods from './modules/app-gif-picker.js?v=4.25.6';
-import ThreadMethods from './modules/app-threads.js?v=4.25.10';
-import AdminMethods    from './modules/app-admin.js?v=4.27.4';
+import ThreadMethods from './modules/app-threads.js?v=4.27.20';
+import AdminMethods    from './modules/app-admin.js?v=4.27.32';
 import BrandingMethods from './modules/app-branding.js?v=4.21.0';
 import MembersAdminMethods from './modules/app-members-admin.js?v=4.27.3';
 import AutocompleteMethods from './modules/app-autocomplete.js?v=4.26.12';
@@ -65,7 +69,7 @@ import DiscordImportMethods from './modules/app-discord-import.js?v=4.26.15';
 import RoleMethods from './modules/app-roles.js?v=4.27.14';
 import RoleAssignMethods from './modules/app-role-assign.js?v=4.26.16';
 import ModerationMethods from './modules/app-moderation.js?v=4.27.9';
-import PlatformMethods from './modules/app-platform.js?v=4.26.6';
+import PlatformMethods from './modules/app-platform.js?v=4.27.26';
 import SearchMethods   from './modules/app-search.js?v=4.24.32';
 import FerryMethods    from './modules/app-ferry.js?v=4.24.10';
 import ForumMethods    from './modules/app-forum.js?v=4.27.13';
@@ -86,7 +90,7 @@ import ModCaseMethods from './modules/app-mod-cases.js?v=4.22.14';
 import MasterVolumeMethods from './modules/app-master-volume.js?v=4.25.21';
 import ServerMuteMethods from './modules/app-server-mute.js?v=4.24.24';
 import ForumUnreadMethods from './modules/app-forum-unread.js?v=4.21.2';
-import ThreadUnreadMethods from './modules/app-thread-unread.js?v=4.26.8';
+import ThreadUnreadMethods from './modules/app-thread-unread.js?v=4.27.20';
 import ThreadDockMethods from './modules/app-thread-dock.js?v=4.25.7';
 import TypingMethods from './modules/app-typing.js?v=4.25.8';
 import MessageNsfwMethods from './modules/app-message-nsfw.js?v=4.25.10';
@@ -97,6 +101,8 @@ import ChannelCategoryMethods from './modules/app-channel-categories.js?v=4.22.2
 import ChannelPersonalOrderMethods from './modules/app-channel-personal-order.js?v=4.22.23';
 import BadgeMethods from './modules/app-badges.js?v=4.24.15';
 import SilentMethods from './modules/app-silent.js?v=4.24.32';
+import SettingsPageMethods from './modules/app-settings-pages.js?v=4.27.29';
+import { startGlyphIcons } from './modules/glyph-icons.js?v=4.27.36';
 
 class HavenApp {
   constructor() {
@@ -352,6 +358,7 @@ class HavenApp {
   // ── Initialization ────────────────────────────────────
 
   _init() {
+    startGlyphIcons();
     // Kick this off before anything can render a message. Until it resolves,
     // _imgSrcAttr parks remote images in data-mp-src rather than emitting a
     // raw external src, so there is no window in which an image leaks. (v3.43.0)
@@ -444,6 +451,7 @@ class HavenApp {
     this._setupTyping();
     this._setupMessageNsfw();
     this._setupMediaPlayback();
+    this._setupMusicListenButtons();
     this._setupSilentToggle();
     this._setupCategoryLayoutPicker();
     this._setupDebugSection();
@@ -473,6 +481,7 @@ class HavenApp {
     document.getElementById('messages')?.addEventListener('error', avatarErrorHandler, true);
     document.getElementById('online-users')?.addEventListener('error', avatarErrorHandler, true);
     this._setupHeldUploadNotes();
+    this._setupSettingsPages();
 
     this.socket.emit('get-channels');
     this.socket.emit('get-server-settings');
@@ -592,6 +601,10 @@ Object.assign(HavenApp.prototype,
   ScreenWebcamMethods,
   StreamTileMethods,
   MusicMethods,
+  MusicFileMethods,
+  ScheduleFileMethods,
+  DraftMethods,
+  WhatsNewMethods,
   MusicKeyMethods,
   UtilityMethods,
   MessageContentMethods,
@@ -643,6 +656,7 @@ Object.assign(HavenApp.prototype,
   BadgeMethods,
   ThemePickerMethods,
   SilentMethods,
+  SettingsPageMethods,
 );
 
 // ── Boot ───────────────────────────────────────────────

@@ -156,7 +156,7 @@ _formatContent(str) {
     // if the element fires `error`, so listing a format here is safe.
     if (['mp3', 'ogg', 'oga', 'wav', 'm4a', 'aac', 'flac', 'opus', 'weba'].includes(ext)) {
       return `<div class="file-attachment">
-        <div class="file-info"><span class="file-type-icon" aria-hidden="true">${icon}</span> <span class="file-name">${fileName}</span> <span class="file-size">(${fileSize})</span>${this._loopHtml?.() || ''}${this._keepPlayingHtml?.() || ''}</div>
+        <div class="file-info"><span class="file-type-icon" aria-hidden="true">${icon}</span> <span class="file-name">${fileName}</span> <span class="file-size">(${fileSize})</span>${this._loopHtml?.() || ''}${this._keepPlayingHtml?.() || ''}${this._musicListenHtml?.(fileUrl, fileName) || ''}</div>
         <audio controls preload="none" src="${fileUrl}" class="file-audio"></audio>
       </div>`;
     }
@@ -227,12 +227,21 @@ _formatContent(str) {
     codeBlocks.push({ lang: lang || '', code });
     return ph('CODEBLOCK', idx);
   });
+  // `inline code` is set aside too, so nothing inside it turns into a link,
+  // a mention, an emoji or formatting: backticks are how to post a URL as
+  // plain text.
+  const inlineCode = [];
+  const withInlineCode = withPlaceholders.replace(/`([^`]+)`/g, (_, code) => {
+    const idx = inlineCode.length;
+    inlineCode.push(code);
+    return ph('INLINECODE', idx);
+  });
 
   // ── Timestamps: <t:1780853820> / <t:1780853820:R> ──
   // Extracted before escaping (the token has angle brackets) and after the
   // code fences above, so a token inside ``` stays literal.
   const timestamps = [];
-  const withTimestamps = withPlaceholders.replace(/<t:(-?\d{1,15})(?::([tTdDfFR]))?>/g, (full, secs, style) => {
+  const withTimestamps = withInlineCode.replace(/<t:(-?\d{1,15})(?::([tTdDfFR]))?>/g, (full, secs, style) => {
     const rendered = this._formatTimestampToken(Number(secs), style || 'f');
     if (!rendered) return full;
     const idx = timestamps.length;
@@ -503,9 +512,6 @@ _formatContent(str) {
   // Render ==highlight==
   html = html.replace(/==(.+?)==/g, '<mark class="chat-highlight">$1</mark>');
 
-  // Render `inline code`
-  html = html.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
-
   // Render grouped > blockquotes and preserve attribution lines inside the quote.
   // A line quotes only when the > is followed by a space, another >, or
   // nothing at all: ">implying" and ">.<" stay as typed (#5654).
@@ -667,6 +673,9 @@ _formatContent(str) {
     const langLabel = block.lang ? `<span class="code-block-lang">${this._escapeHtml(block.lang)}</span>` : '';
     const rendered = `<div class="code-block"${langAttr}>${langLabel}<pre><code>${escaped}</code></pre></div>`;
     html = html.replace(ph('CODEBLOCK', idx), () => rendered);
+  });
+  inlineCode.forEach((code, idx) => {
+    html = html.replace(ph('INLINECODE', idx), () => `<code class="inline-code">${this._escapeHtml(code)}</code>`);
   });
 
   // ── Restore markdown links/images ──
@@ -866,7 +875,14 @@ _replyPreviewText(content) {
 _renderReplyBanner(replyCtx) {
   const text = this._replyPreviewText(replyCtx.content);
   const previewText = text.length > 80 ? text.substring(0, 80) + '…' : text;
-  const color = this._getUserColor(replyCtx.username);
+  // The same color the name has on the message itself: the role's color in
+  // "colored name" mode, otherwise the color made from the username.
+  let color = this._getUserColor(replyCtx.username);
+  const ownName = !replyCtx.is_webhook && !replyCtx.imported_from && !replyCtx.persona_username;
+  const member = ownName ? this._memberById?.(replyCtx.user_id) : null;
+  if ((localStorage.getItem('haven-role-display') || 'colored-name') === 'colored-name' && member?.role?.color) {
+    color = this._safeColor(member.role.color, color);
+  }
   return `
     <div class="reply-banner" data-reply-msg-id="${replyCtx.id}">
       <span class="reply-line" style="background:${color}"></span>
@@ -1138,7 +1154,7 @@ _startEditMessage(msgEl, msgId) {
     }
     if (this._composerListKey(e, textarea)) return;
 
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && this._enterSends(e)) {
       e.preventDefault();
       btnRow.querySelector('.edit-save-btn').click();
     }
@@ -1346,9 +1362,18 @@ _enforceDmLinkPolicy(containerEl) {
     } catch { return false; }
   };
 
+  // Messages from an admin, or from someone at or above "Skip filtering at
+  // role level", are left alone, as the server leaves them alone everywhere
+  // else. The server says who in this DM that is.
+  const code = (containerEl.closest && containerEl.closest('[data-code]')?.dataset.code) || this.currentChannel;
+  const dm = (this.channels || []).find(c => c.code === code);
+  const exempt = new Set((dm && dm.link_exempt_ids) || []);
+  const fromExempt = (el) => exempt.has(Number(el.closest('[data-user-id]')?.dataset.userId));
+
   containerEl.querySelectorAll('.message-content a[href]').forEach(a => {
     if (a.dataset.policyChecked) return;
     a.dataset.policyChecked = '1';
+    if (fromExempt(a)) return;
     if (!hostBlocked(a.href)) return;
 
     let host = a.href;
@@ -1367,6 +1392,7 @@ _enforceDmLinkPolicy(containerEl) {
   containerEl.querySelectorAll('.message-content img[data-mp-origin], .message-content img.chat-image').forEach(img => {
     if (img.dataset.policyChecked) return;
     img.dataset.policyChecked = '1';
+    if (fromExempt(img)) return;
     const origin = img.dataset.mpOrigin || img.getAttribute('data-mp-src') || img.dataset.lazySrc || img.src;
     if (!hostBlocked(origin)) return;
     const ph = document.createElement('span');

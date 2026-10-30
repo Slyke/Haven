@@ -137,6 +137,19 @@ _bindVoiceControls() {
       }
     });
   }
+  const camQualitySelect = document.getElementById('voice-cam-quality');
+  if (camQualitySelect) {
+    try { camQualitySelect.value = localStorage.getItem('haven_cam_quality') || '480'; } catch { /* private mode: the default stays picked */ }
+    camQualitySelect.addEventListener('change', (e) => {
+      try { localStorage.setItem('haven_cam_quality', e.target.value); } catch { /* private mode: applies for this visit only */ }
+      // A camera that is on picks the new size up straight away.
+      if (this.voice && this.voice.isWebcamActive) {
+        let deviceId = '';
+        try { deviceId = localStorage.getItem('haven_cam_device') || ''; } catch { /* private mode: the default camera */ }
+        this.voice.switchCamera(deviceId);
+      }
+    });
+  }
   if (camDeviceSelect) {
     camDeviceSelect.addEventListener('change', (e) => {
       const deviceId = e.target.value;

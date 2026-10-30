@@ -534,32 +534,37 @@ _resyncDesktopBadgeOnFocus() {
   this._desktopBadgeFocusBound = true;
   const resync = () => {
     if (document.hidden) return;
-    // Clear stale unread badge on the channel the user is actively viewing.
-    // When the page is hidden (backgrounded BrowserView, alt-tab, minimise)
-    // incoming messages bump unreadCounts even though the user was already
-    // at the bottom, because isActivelyViewing = false in the new-message
-    // handler.  The badge-clearing path inside that handler only fires when
-    // a *new* message arrives while visible, so if no message arrives after
-    // the user returns the "N unread" badge is stuck until someone else
-    // types.  Fix: as soon as the window becomes visible again, if the user
-    // is still coupled to the bottom of the current channel, treat those
-    // messages as read immediately. (#phantom-badge-on-focus-return)
-    if (this.currentChannel && this._coupledToBottom && this.unreadCounts?.[this.currentChannel]) {
-      const code = this.currentChannel;
-      const ch = this.channels?.find(c => c.code === code);
-      const latestId = ch?.latestMessageId || this._newestMsgId;
-      this.unreadCounts[code] = 0;
-      try { this._updateBadge?.(code); } catch (err) { console.warn('[Channels] _updateBadge failed', err); }
-      try { this._updateDmSectionBadge?.(); } catch (err) { console.warn('[Channels] _updateDmSectionBadge failed', err); }
-      try { this._updateTabTitle?.(); } catch (err) { console.warn('[Channels] _updateTabTitle failed', err); }
-      if (latestId) {
-        try { this.socket.emit('mark-read', { code, messageId: latestId }); } catch (err) { console.warn('[Channels] could not mark the channel read', err); }
-      }
-    }
+    this._clearSeenUnread();
     try { this._updateDesktopBadge(); } catch (err) { console.warn('[Channels] _updateDesktopBadge failed', err); }
   };
   window.addEventListener('focus', resync);
   document.addEventListener('visibilitychange', resync);
+  // A click or key press in the page means someone is looking at it, even
+  // when the window never lost focus as far as the page could tell.
+  document.addEventListener('pointerdown', () => this._clearSeenUnread(), { capture: true, passive: true });
+  document.addEventListener('keydown', () => this._clearSeenUnread(), { capture: true });
+},
+
+// Messages that came in while the page was hidden or the window unfocused
+// count as unread even in the open channel. They are read once the newest
+// ones are in view: the page showing and the feed at its bottom. Called when
+// the window comes back, when the feed is scrolled back down to the bottom,
+// and on a click or key press. The new-message handler only clears them when
+// another message arrives, so without this the count stayed until someone
+// else posted. (#phantom-badge-on-focus-return)
+_clearSeenUnread() {
+  const code = this.currentChannel;
+  if (document.hidden || !code || !this._coupledToBottom || !this.unreadCounts?.[code]) return;
+  const ch = this.channels?.find(c => c.code === code);
+  const latestId = ch?.latestMessageId || this._newestMsgId;
+  this.unreadCounts[code] = 0;
+  try { this._updateBadge?.(code); } catch (err) { console.warn('[Channels] _updateBadge failed', err); }
+  try { this._updateDmSectionBadge?.(); } catch (err) { console.warn('[Channels] _updateDmSectionBadge failed', err); }
+  try { this._updateTabTitle?.(); } catch (err) { console.warn('[Channels] _updateTabTitle failed', err); }
+  try { this._updateDesktopBadge?.(); } catch (err) { console.warn('[Channels] _updateDesktopBadge failed', err); }
+  if (latestId) {
+    try { this.socket.emit('mark-read', { code, messageId: latestId }); } catch (err) { console.warn('[Channels] could not mark the channel read', err); }
+  }
 },
 
 /**

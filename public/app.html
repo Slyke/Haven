@@ -10,9 +10,9 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <title>Haven</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cG9seWdvbiBwb2ludHM9IjUwLDMgOTMsMjggOTMsNzIgNTAsOTcgNyw3MiA3LDI4IiBmaWxsPSJub25lIiBzdHJva2U9IiM2YjRmZGIiIHN0cm9rZS13aWR0aD0iOCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjx0ZXh0IHg9IjUwIiB5PSI2MyIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9IkFyaWFsLEhlbHZldGljYSxzYW5zLXNlcmlmIiBmb250LXdlaWdodD0iYm9sZCIgZm9udC1zaXplPSIzOCIgZmlsbD0iIzZiNGZkYiIgb3BhY2l0eT0iMC45NSI+SDwvdGV4dD48L3N2Zz4=">
-  <link rel="stylesheet" href="/css/style.css?v=4.27.14">
+  <link rel="stylesheet" href="/css/style.css?v=4.27.36">
   <script src="/js/theme-compat.js?v=4.24.18"></script>
-  <script src="/js/theme-init.js?v=4.24.18"></script>
+  <script src="/js/theme-init.js?v=4.27.19"></script>
 </head>
 <body data-haven-page="app">
 
@@ -829,6 +829,16 @@
               <option value="" data-i18n="voice_settings.default_camera">Default Camera</option>
             </select>
           </div>
+          <div class="voice-settings-row">
+            <label class="voice-settings-label" data-i18n="voice_settings.camera_quality">Camera Quality</label>
+            <select id="voice-cam-quality" class="voice-settings-select" data-i18n-title="voice_settings.camera_quality_hint" title="Higher quality looks sharper but uses more bandwidth, for you and everyone watching. Your camera may top out lower.">
+              <option value="480">480p</option>
+              <option value="720">720p</option>
+              <option value="720p60">720p 60 fps</option>
+              <option value="1080">1080p</option>
+              <option value="1080p60">1080p 60 fps</option>
+            </select>
+          </div>
           <div class="voice-settings-divider"></div>
           <div class="voice-settings-row">
             <label class="voice-settings-label">🤫 <span data-i18n="voice_settings.noise_reduction">Noise Reduction</span></label>
@@ -1535,6 +1545,7 @@
 
           <div class="settings-nav-group-label" data-i18n="settings.nav.group_chat">Chat</div>
           <div class="settings-nav-item" data-target="section-chat-behavior">💬 <span data-i18n="settings.nav.chat_behavior">Chat Behavior</span></div>
+          <div class="settings-nav-item" data-target="section-whats-new">🆕 <span data-i18n="settings.nav.whats_new">What's New</span></div>
           <div class="settings-nav-item" data-target="section-soundboard-mode">🎛️ <span data-i18n="settings.nav.soundboard">Soundboard</span></div>
           <div class="settings-nav-item" data-target="section-sounds">🔔 <span data-i18n="settings.nav.sounds">Sounds</span></div>
           <div class="settings-nav-item" data-target="section-push">📲 <span data-i18n="settings.nav.push">Push</span></div>
@@ -1762,6 +1773,14 @@
             <option value="dyslexic" data-i18n="settings.accessibility.font.dyslexic">OpenDyslexic</option>
           </select>
           <small class="settings-hint" style="display:block" data-i18n="settings.accessibility.font.hint">Replaces the theme's font across the app. Atkinson Hyperlegible keeps similar letters apart; OpenDyslexic weights the bottom of each letter. Code keeps its monospace font.</small>
+        </div>
+        <div class="settings-subsection" id="a11y-emoji-subsection">
+          <small class="settings-group-label" id="emoji-style-label">😀 <span data-i18n="settings.accessibility.emoji.title">Emoji</span></small>
+          <select id="emoji-style-select" class="settings-select" aria-labelledby="emoji-style-label">
+            <option value="system" data-i18n="settings.accessibility.emoji.system">Your device's emoji</option>
+            <option value="twemoji" data-i18n="settings.accessibility.emoji.twemoji">Twemoji</option>
+          </select>
+          <small class="settings-hint" style="display:block" data-i18n="settings.accessibility.emoji.hint">Twemoji draws emoji the same on every device, from a font Haven serves itself.</small>
         </div>
         <div class="settings-subsection" id="a11y-motion-subsection">
           <small class="settings-group-label" id="reduce-motion-label">🌙 <span data-i18n="settings.accessibility.motion.title">Reduce Motion</span></small>
@@ -2070,6 +2089,23 @@
           </label>
           <small class="settings-hint" style="display:block;margin-bottom:6px" data-i18n="settings.chat_behavior.official_mode_hint">Every message you send where you can post as your role goes out official, until you turn this off. The megaphone then sends just the next message plain. Saved to your account, so it follows you to every device.</small>
         </div>
+      </div>
+
+      <!-- What's new after an update (app-whats-new.js) -->
+      <div class="settings-section" id="section-whats-new" style="border-top: 1px solid var(--border-light); padding-top: 16px; margin-top: 8px;">
+        <h5 class="settings-section-title">🆕 <span data-i18n="settings.whats_new.title">What's New</span></h5>
+        <div class="whats-new-version" id="whats-new-version"></div>
+        <label class="select-row">
+          <span data-i18n="settings.whats_new.show_label">Show what's new after</span>
+          <select id="whats-new-select" style="max-width:180px">
+            <option value="all" data-i18n="settings.whats_new.all">Every update</option>
+            <option value="minor" data-i18n="settings.whats_new.minor">New features</option>
+            <option value="major" data-i18n="settings.whats_new.major">Big updates only</option>
+            <option value="off" data-i18n="settings.whats_new.off">Never</option>
+          </select>
+        </label>
+        <small class="settings-hint" style="display:block;margin-bottom:6px" data-i18n="settings.whats_new.hint">A version number has three parts: a big update changes the first, new features the second, and fixes the third. When an underlined part changes, you get a popup with the release notes. Saved on this device.</small>
+        <button type="button" class="btn-sm" id="whats-new-show-btn" data-i18n="settings.whats_new.show_now">See what's new in this version</button>
       </div>
 
       <!-- Soundboard Sidebar Setting -->
@@ -2777,6 +2813,10 @@
             <button class="btn-sm" id="update-run-btn" disabled data-i18n="settings.admin.update_run_btn">Update Now</button>
           </div>
           <div id="update-status" style="margin-top:10px;padding:8px;border:1px solid var(--border);border-radius:4px;display:none"></div>
+          <div style="margin-top:10px">
+            <button class="btn-sm danger" id="server-shutdown-btn" data-i18n="settings.admin.shutdown_btn">Shut Down Server</button>
+          </div>
+          <small class="settings-hint" data-i18n="settings.admin.shutdown_hint">Stops Haven cleanly, the same as Ctrl+C. Start it again the way you usually do. If Docker or a service manager restarts Haven on its own, this restarts it instead.</small>
         </div>
 
         <!-- Plugin and Theme Updates -->
@@ -3261,6 +3301,19 @@
         <!-- Security -->
         <div class="admin-settings" id="section-security" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
           <h5 class="settings-section-subtitle">🔒 <span data-i18n="settings.admin.security_title">Security</span></h5>
+          <label class="select-row" style="margin-top:6px">
+            <span data-i18n="settings.admin.session_duration">Login session duration</span>
+            <select id="session-duration-days" class="settings-select">
+              <option value="0" data-i18n="settings.admin.session_duration_never">Never expire (recommended)</option>
+              <option value="1" data-i18n="settings.admin.session_duration_1_day">1 day</option>
+              <option value="7" data-i18n="settings.admin.session_duration_7_days">7 days</option>
+              <option value="30" data-i18n="settings.admin.session_duration_30_days">30 days</option>
+              <option value="90" data-i18n="settings.admin.session_duration_90_days">90 days</option>
+              <option value="365" data-i18n="settings.admin.session_duration_365_days">365 days</option>
+            </select>
+          </label>
+          <small class="settings-hint" data-i18n="settings.admin.session_duration_hint">How long a login token stays valid before users must sign in again. "Never expire" keeps users logged in until they hit Logout or change their password. Applies to new logins only; existing tokens keep their original expiry until they expire or rotate.</small>
+
 
           <!-- (#12) SSO / OIDC -->
           <small class="settings-group-label" style="margin-top:8px;display:block">🔑 <span data-i18n="settings.admin.oidc_group">Single sign-on (OIDC)</span></small>
@@ -3424,6 +3477,13 @@
             <div id="automod-top-hosts" style="margin-top:8px"></div>
             <div id="automod-log-list" class="whitelist-list" style="margin-top:8px"></div>
           </div>
+
+          <small class="settings-group-label" style="margin-top:14px;display:block">🧪 <span data-i18n="settings.admin.automod_ai_group">AI link checks (experimental)</span></small>
+          <label class="toggle-row" style="margin-top:6px">
+            <span data-i18n="settings.admin.automod_ai_enabled">Let the AutoMod Quarantine plugin use this server</span>
+            <input type="checkbox" id="automod-ai-enabled">
+          </label>
+          <small class="settings-hint" data-i18n="settings.admin.automod_ai_hint">Experimental. Off by default. Turns on the server side of the AutoMod Quarantine plugin: checking links with an AI model running on this server (set up with scripts/setup-automod-ai.sh), and passing moderators' requests on to cloud AI services that refuse browsers. Only the link is ever sent to an AI, never the message. Members still choose whether to turn the plugin on in Plugins &amp; Themes.</small>
         </div>
 
         <!-- Whitelist -->
@@ -3674,17 +3734,10 @@
           </label>
           <small class="settings-hint" data-i18n="settings.admin.max_poll_hint">Maximum answer choices per poll (2-25, default 10)</small>
           <label class="select-row" style="margin-top:8px">
-            <span data-i18n="settings.admin.session_duration">Login session duration</span>
-            <select id="session-duration-days" class="settings-select">
-              <option value="0" data-i18n="settings.admin.session_duration_never">Never expire (recommended)</option>
-              <option value="1" data-i18n="settings.admin.session_duration_1_day">1 day</option>
-              <option value="7" data-i18n="settings.admin.session_duration_7_days">7 days</option>
-              <option value="30" data-i18n="settings.admin.session_duration_30_days">30 days</option>
-              <option value="90" data-i18n="settings.admin.session_duration_90_days">90 days</option>
-              <option value="365" data-i18n="settings.admin.session_duration_365_days">365 days</option>
-            </select>
+            <span data-i18n="settings.admin.blocked_upload_types">Blocked file types</span>
+            <input type="text" id="blocked-upload-types" class="settings-text-input" placeholder="exe, bat, dll" data-i18n-placeholder="settings.admin.blocked_upload_types_placeholder" spellcheck="false" autocomplete="off" maxlength="1000">
           </label>
-          <small class="settings-hint" data-i18n="settings.admin.session_duration_hint">How long a login token stays valid before users must sign in again. "Never expire" keeps users logged in until they hit Logout or change their password. Applies to new logins only; existing tokens keep their original expiry until they expire or rotate.</small>
+          <small class="settings-hint" data-i18n="settings.admin.blocked_upload_types_hint">Files of these types can't be uploaded, by anyone. Separate them with commas. Common risky ones: exe, msi, bat, cmd, com, scr, ps1, vbs, dll, jar. Leave empty to allow every type.</small>
         </div>
 
         <!-- Tags (Admin / manage_tags): manage the upload-tag vocabulary -->
@@ -4900,6 +4953,11 @@
       <div class="form-group">
         <label data-i18n="modals.schedule.message_label">Message</label>
         <textarea id="schedule-text" class="settings-text-input" rows="4" maxlength="2000"></textarea>
+        <div id="schedule-attach-row" class="schedule-attach-row">
+          <button type="button" class="btn-sm" id="schedule-attach-btn" data-i18n="modals.schedule.attach">📎 Attach files</button>
+          <input type="file" id="schedule-file-input" multiple style="display:none">
+          <div id="schedule-file-list" class="schedule-file-list"></div>
+        </div>
       </div>
       <div class="form-group" style="margin-top:8px">
         <label data-i18n="modals.schedule.when_label">Send at</label>
@@ -5283,7 +5341,7 @@
         <li><span class="promo-check">✓</span> <span data-i18n="modals.desktop_promo.feature_audio">Per-app audio routing</span></li>
         <li><span class="promo-check">✓</span> <span data-i18n="modals.desktop_promo.feature_launcher">Built-in server launcher</span></li>
       </ul>
-      <p class="desktop-promo-meta" id="desktop-promo-meta">Windows Installer • v1.0.0</p>
+      <p class="desktop-promo-meta" id="desktop-promo-meta">Windows Installer</p>
       <div class="desktop-promo-actions">
         <a id="desktop-promo-install" class="btn btn-accent desktop-promo-install" href="https://haven-app.com/#download" target="_blank" rel="noopener">⬇ <span data-i18n="modals.desktop_promo.install_btn">Install Haven</span></a>
         <button id="desktop-promo-later" class="btn desktop-promo-later" data-i18n="modals.desktop_promo.later_btn">Maybe later</button>
@@ -5434,14 +5492,14 @@
   <script src="/js/notifications.js?v=4.23.6"></script>
   <script src="/js/servers.js?v=4.23.9"></script>
   <script src="/js/voice-relay.js?v=4.27.5"></script>
-  <script src="/js/voice.js?v=4.27.5"></script>
+  <script src="/js/voice.js?v=4.27.38"></script>
   <script src="/js/modmode.js?v=4.21.0"></script>
   <script src="/js/e2e-group.js?v=4.21.0"></script>
   <script src="/js/e2e.js?v=4.21.0"></script>
   <!-- Shared with the server (src/automod.js requires the same file) so both
        sides reach identical verdicts on a link. Must load before app.js. -->
-  <script src="/js/automod-rules.js?v=4.26.2"></script>
-  <script type="module" src="/js/app.js?v=4.27.14"></script>
+  <script src="/js/automod-rules.js?v=4.27.27"></script>
+  <script type="module" src="/js/app.js?v=4.27.37"></script>
   <script src="/js/plugin-loader.js?v=4.24.18"></script>
   <script src="/js/modules/stream-debug.js?v=4.21.0"></script>
   <script src="/js/password-eye.js?v=4.21.0"></script>

@@ -69,6 +69,7 @@ if (!fs.existsSync(ENV_PATH)) {
 }
 
 require('dotenv').config({ path: ENV_PATH });
+require('./src/envHash').warnCutValues(ENV_PATH);
 
 // Also load the project root .env as an override source.
 // Docker compose injects it via env_file, but when running directly on the
@@ -81,6 +82,7 @@ require('dotenv').config({ path: ENV_PATH });
 const rootEnv = path.join(__dirname, '.env');
 if (fs.existsSync(rootEnv)) {
   require('dotenv').config({ path: rootEnv, override: false });
+  require('./src/envHash').warnCutValues(rootEnv);
   console.log('📄 Loaded project root .env as supplementary source');
 }
 
@@ -1589,6 +1591,9 @@ app.get('/api/gif/trending', gifLimiter, (req, res) => {
 // ── Link previews and the media proxy: src/routes/link-preview.js ──
 require('./src/routes/link-preview')({ app });
 
+// ── Release notes for the "What's new" popup: src/routes/changelog.js ──
+require('./src/routes/changelog')({ app, verifyToken });
+
 // ── Games list endpoint: discover available games ──
 app.get('/api/games', (req, res) => {
   const gamesDir = path.join(__dirname, 'public', 'games');
@@ -1664,6 +1669,15 @@ const webhookLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, message: { erro
 const webhookAudioLimiter = rateLimit({ windowMs: 60 * 1000, max: 10, message: { error: 'Audio rate limit exceeded' } });
 const webhookAudioControlLimiter = rateLimit({ windowMs: 60 * 1000, max: 30, message: { error: 'Audio control rate limit exceeded' } });
 const botAudioPlaybackLimiter = rateLimit({ windowMs: 60 * 1000, max: 120, message: { error: 'Audio playback rate limit exceeded' } });
+// Opening a webhook URL in a browser sends a GET, which used to fall through
+// to the generic "Not found" and read as a broken webhook. Say how to use it
+// instead. The token is not looked up, so this tells nobody whether it exists.
+app.get('/api/webhooks/:token', webhookLimiter, (req, res) => {
+  res.set('Allow', 'POST').status(405).json({
+    error: 'Webhooks take POST requests, so opening this link in a browser will not work. Send a POST with a JSON body like {"content": "Hello"}. See "Bot & Webhook Developer Guide" in GUIDE.md.'
+  });
+});
+
 app.post('/api/webhooks/:token', webhookLimiter, express.json({ limit: '64kb' }), (req, res) => {
   const { getDb } = require('./src/database');
   const db = getDb();
@@ -1832,6 +1846,13 @@ app.post('/api/webhooks/:token', webhookLimiter, express.json({ limit: '64kb' })
       channelCode: webhook.channel_code,
       message
     });
+    // Phones, and browsers with push on, are told as for a member's message.
+    // Bot posts never pushed, and a browser with push on leaves its pop-ups
+    // to the push, so those people heard nothing at all.
+    if (socketRuntime?.sendPushNotifications) {
+      socketRuntime.sendPushNotifications(webhook.channel_id, webhook.channel_code, webhook.channel_name, 0, username, content,
+        { silent, replyToUserId: replyContext?.user_id || undefined });
+    }
   }
 
   res.status(200).json({ success: true, message_id: result.lastInsertRowid, ...(threadId ? { thread_id: threadId } : {}) });
@@ -2473,7 +2494,8 @@ app.post('/api/moderation/mute', modLimiter, express.json({ limit: '16kb' }), (r
 
   // Same ceiling as the app: 30 days.
   const durationMs = Number.isInteger(duration) && duration > 0 ? Math.min(duration, 43200) * 60 * 1000 : 10 * 60 * 1000;
-  const expiresAt = new Date(Date.now() + durationMs).toISOString();
+  // SQLite's own time format, which every mute check compares against.
+  const expiresAt = new Date(Date.now() + durationMs).toISOString().slice(0, 19).replace('T', ' ');
   const safeReason = typeof reason === 'string' ? reason.trim().slice(0, 200) : '';
 
   db.prepare('DELETE FROM mutes WHERE user_id = ?').run(userId);
@@ -2535,6 +2557,8 @@ app.get('/api/moderation/mutes', modLimiter, (req, res) => {
   `).all();
   res.json({ mutes });
 });
+const automod = require('./src/routes/automodRelay')({ app, getModUser, verifyToken, rateLimit });
+
 
 // ═══════════════════════════════════════════════════════════
 // BOT SLASH COMMANDS API
@@ -2744,7 +2768,8 @@ app.post('/api/webhooks/:token/moderation/mute', webhookLimiter, express.json({ 
 
   // Same ceiling as the app: 30 days.
   const durationMs = Number.isInteger(duration) && duration > 0 ? Math.min(duration, 43200) * 60 * 1000 : 10 * 60 * 1000;
-  const expiresAt = new Date(Date.now() + durationMs).toISOString();
+  // SQLite's own time format, which every mute check compares against.
+  const expiresAt = new Date(Date.now() + durationMs).toISOString().slice(0, 19).replace('T', ' ');
   const safeReason = typeof reason === 'string' ? reason.trim().slice(0, 200) : '';
 
   db.prepare('DELETE FROM mutes WHERE user_id = ?').run(userId);
@@ -3119,6 +3144,7 @@ socketRuntime = setupSocketHandlers(io, db, {
   onReferrerPolicyChange: (v) => { if (VALID_REFERRER_POLICIES.includes(v)) currentReferrerPolicy = v; }
 });
 activityRef.engine = socketRuntime.activity;
+automod.attachSweep(io);
 require('./src/httpAudit').setAuditSink(socketRuntime.logAudit);
 require('./src/selfDestruct').start({ db, io, UPLOAD_PATH_RE, moveUploadToDeleted: storage.softDelete, removeUpload: storage.remove });
 
@@ -3572,11 +3598,25 @@ function gracefulShutdown(signal) {
   const ts = new Date().toISOString();
   const line = `[${ts}] Graceful shutdown: ${signal}\n`;
   try { rotateCrashLogIfNeeded(); fs.appendFileSync(CRASH_LOG, line); } catch { /* crash log is a diagnostic extra; shutdown continues */ }
-  console.log(`\n${signal} received, shutting down`);
+  console.log(`\n${signal === 'admin' ? 'Shut down from Settings' : `${signal} received`}, shutting down`);
   botAudioManager?.shutdown();
   require('./src/mediaTools').stopExiftool();
   io.close();
-  server.close(() => process.exit(0));
+  const finish = () => {
+    // Closing the database writes out its journal, so the next start does
+    // not have to replay it.
+    try { db.close(); } catch (err) { console.warn('[shutdown] database close failed:', err.message); }
+    process.exit(0);
+  };
+  server.close(finish);
+  // A browser holding a keep-alive connection open can keep server.close()
+  // waiting; don't let that stall the shutdown.
+  setTimeout(finish, 5000).unref();
 }
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+// The same shutdown for the admin's button in Settings (src/routes/maintenance.js).
+late.shutdown = (reason) => {
+  try { stopFerry(); } catch { /* shutting down anyway; Discord drops the session on its own */ }
+  gracefulShutdown(reason);
+};

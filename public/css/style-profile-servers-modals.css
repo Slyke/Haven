@@ -1533,7 +1533,9 @@ img[data-lazy="loaded"] { animation: lazy-media-in 0.15s ease; }
   box-shadow: 0 0 4px var(--accent-glow, rgba(124,92,252,0.3));
 }
 
-.select-row select {
+.select-row select,
+select.settings-select,
+.whitelist-add-row select {
   background: var(--bg-input);
   color: var(--text-primary);
   border: 1px solid var(--border);
@@ -1545,7 +1547,9 @@ img[data-lazy="loaded"] { animation: lazy-media-in 0.15s ease; }
   outline: none;
 }
 
-.select-row select:focus { border-color: var(--accent); }
+.select-row select:focus,
+select.settings-select:focus,
+.whitelist-add-row select:focus { border-color: var(--accent); }
 
 
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•

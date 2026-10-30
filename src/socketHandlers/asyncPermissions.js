@@ -29,6 +29,34 @@ module.exports = function createAsyncPermissions(db) {
     return [channelId];
   }
 
+  async function getUserEffectiveLevel(userId, channelId = null) {
+    const user = await db.prepare('SELECT is_admin FROM users WHERE id = ?').get(userId);
+    if (user && user.is_admin) return 100;
+
+    const serverRole = await db.prepare(`
+      SELECT MAX(COALESCE(ur.custom_level, r.level)) as "maxLevel" FROM roles r
+      JOIN user_roles ur ON r.id = ur.role_id
+      WHERE ur.user_id = ? AND r.scope = 'server' AND ur.channel_id IS NULL
+    `).get(userId);
+    let level = (serverRole && serverRole.maxLevel) || 0;
+
+    if (channelId) {
+      const chain = await getChannelRoleChain(channelId);
+      if (chain.length > 0) {
+        const placeholders = chain.map(() => '?').join(',');
+        const channelRole = await db.prepare(`
+          SELECT MAX(COALESCE(ur.custom_level, r.level)) as "maxLevel" FROM roles r
+          JOIN user_roles ur ON r.id = ur.role_id
+          WHERE ur.user_id = ? AND ur.channel_id IN (${placeholders})
+        `).get(userId, ...chain);
+        if (channelRole && channelRole.maxLevel && channelRole.maxLevel > level) {
+          level = channelRole.maxLevel;
+        }
+      }
+    }
+    return level;
+  }
+
   async function userHasPermission(userId, permission, channelId = null) {
     const user = await db.prepare('SELECT is_admin FROM users WHERE id = ?').get(userId);
     if (user && user.is_admin) return true;
@@ -96,5 +124,5 @@ module.exports = function createAsyncPermissions(db) {
     return gate.mode === 'all' ? gate.roles.every(r => held.has(r)) : gate.roles.some(r => held.has(r));
   }
 
-  return { userHasPermission, roleGateAllows };
+  return { userHasPermission, roleGateAllows, getUserEffectiveLevel };
 };

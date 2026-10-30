@@ -650,7 +650,14 @@
     },
     "push_to_mute_held": "按住静音已生效。松开前你的麦克风保持静音。",
     "sharing_ended": "{{who}} 已不再共享屏幕",
-    "status_push_to_mute": "已静音（按住静音）"
+    "status_push_to_mute": "已静音（按住静音）",
+    "music_file_platform": "音频文件",
+    "music_file_listen": "为语音中的所有人播放",
+    "music_file_join_voice": "加入语音频道后可为那里的所有人播放",
+    "music_file_failed": "无法播放此音频文件",
+    "music_yt_gone": "YouTube 表示此视频已不存在",
+    "music_yt_blocked": "YouTube 不会在这里播放此视频（上传者关闭了嵌入，或在此国家/地区被屏蔽）",
+    "music_yt_failed": "YouTube 无法播放此视频"
   },
   "calls": {
     "incoming": "来电",
@@ -1053,6 +1060,7 @@
     "uploads_disabled": "此频道已禁用媒体上传",
     "soundboard_disabled": "此频道已关闭音效板",
     "file_too_large": "文件过大（最大 {{maxMb}} MB）",
+    "file_type_blocked": "此服务器不允许上传 .{{ext}} 文件",
     "image_too_large": "图片过大（最大 {{maxMb}} MB）",
     "max_images": "一次最多 5 张图片",
     "max_files": "一次最多 5 个文件",
@@ -1418,7 +1426,9 @@
     "frame_rate": "帧率",
     "bitrate": "码率",
     "bitrate_unlimited": "不限",
-    "camera_fallback": "摄像头 {{n}}"
+    "camera_fallback": "摄像头 {{n}}",
+    "camera_quality": "摄像头画质",
+    "camera_quality_hint": "画质越高越清晰，但你和观看者都会用更多带宽。你的摄像头可能达不到这么高。"
   },
   "notifications_runtime": {
     "title": "{{sender}} 在 {{channel}}",
@@ -1577,7 +1587,26 @@
       "backup": "备份",
       "template": "服务器模板",
       "audit_log": "审计日志",
-      "badges": "徽章"
+      "badges": "徽章",
+      "whats_new": "新功能"
+    },
+    "pages": {
+      "look": "外观",
+      "chat": "聊天与媒体",
+      "alerts": "通知",
+      "profile": "个人资料与动态",
+      "security": "账户与安全",
+      "language": "语言",
+      "access": "无障碍",
+      "advanced": "插件与高级",
+      "server": "服务器",
+      "people": "成员与角色",
+      "safety": "安全",
+      "content": "内容",
+      "network": "网络与规模",
+      "tools": "机器人与数据",
+      "more": "更多",
+      "more_info": "更多信息"
     },
     "localization_section": {
       "title": "本地化"
@@ -1699,6 +1728,12 @@
         "underline_links": "链接下划线",
         "large_targets": "更大的点击区域",
         "large_targets_hint": "侧边栏、消息框和消息操作中的按钮更大、行更高。"
+      },
+      "emoji": {
+        "title": "表情符号",
+        "system": "设备自带的表情",
+        "twemoji": "Twemoji",
+        "hint": "Twemoji 在所有设备上显示一样的表情，字体由 Haven 自己提供。"
       }
     },
     "reaction_size": {
@@ -2147,6 +2182,10 @@
       "update_hint": "检查新的 Haven 发布版本并就地更新。服务器会自动创建更新前备份并自行重启。",
       "update_check_btn": "检查更新",
       "update_run_btn": "立即更新",
+      "shutdown_btn": "关闭服务器",
+      "shutdown_hint": "像 Ctrl+C 一样干净地停止 Haven。之后按平常的方式再启动。如果 Docker 或服务管理器会自动重启 Haven，这会变成重启。",
+      "shutdown_confirm": "现在关闭服务器？在重新启动之前所有人都会断开。",
+      "shutdown_sent": "服务器正在关闭。",
       "update_checking": "检查中…",
       "update_run_on_host": "在主机上运行：",
       "update_copy_command": "复制命令",
@@ -2247,6 +2286,9 @@
       "automod_log_channel_placeholder": "频道代码（可选）",
       "automod_activity_group": "最近活动",
       "automod_refresh": "刷新",
+      "automod_ai_group": "AI 链接检查（实验性）",
+      "automod_ai_enabled": "允许 AutoMod Quarantine 插件使用此服务器",
+      "automod_ai_hint": "实验性功能，默认关闭。开启 AutoMod Quarantine 插件的服务器端：用运行在此服务器上的 AI 模型检查链接（通过 scripts/setup-automod-ai.sh 安装），并把版主的请求转发给拒绝浏览器请求的云端 AI 服务。发给 AI 的始终只有链接，从不包括消息内容。成员仍可自行决定是否在“插件与主题”中开启该插件。",
       "bulk_preview_failed": "预览失败",
       "mention_everyone_desc": "通知频道中的所有人",
       "mention_here_desc": "通知在线成员",
@@ -2710,6 +2752,9 @@
       "max_avatar_hint": "某人可上传的最大头像、边框或人设图片（1 到 10 MB，默认 2）。动态 GIF 通常超过 2 MB，但每张图片都会在其所有者发送的每条消息旁加载，因此请尽量保持较低。",
       "max_emoji_hint": "最大自定义表情上传大小（64-1024 KB，默认 256）",
       "max_poll_hint": "每个投票的最大选项数（2-25，默认 10）",
+      "blocked_upload_types": "禁止的文件类型",
+      "blocked_upload_types_hint": "任何人都不能上传这些类型的文件。用逗号分隔。常见的危险类型：exe, msi, bat, cmd, com, scr, ps1, vbs, dll, jar。留空则允许所有类型。",
+      "blocked_upload_types_placeholder": "exe, bat, dll",
       "max_message_chars_hint": "每条消息、帖子或私信的最大字符数（200-100000，默认 2000）",
       "max_invite_uses": "邀请链接最大使用次数",
       "max_invite_uses_hint": "邀请链接可设置的最大使用次数。管理员和管理服务器权限不受此限制。（0 = 不限）",
@@ -3105,7 +3150,17 @@
       "blur": "NSFW 话题点击前模糊",
       "blur_hint": "标记 🔞 的话题图片和预览会像剧透一样模糊显示。关闭后可直接查看。"
     },
-    "search_placeholder": "搜索设置（Ctrl+F）"
+    "search_placeholder": "搜索设置（Ctrl+F）",
+    "whats_new": {
+      "title": "新功能",
+      "show_label": "何时显示新内容",
+      "all": "每次更新",
+      "minor": "新功能",
+      "major": "仅重大更新",
+      "off": "从不",
+      "hint": "版本号分三部分：重大更新改变第一部分，新功能改变第二部分，修复改变第三部分。带下划线的部分变化时，会弹出更新说明。保存在此设备上。",
+      "show_now": "查看此版本的新内容"
+    }
   },
   "modals": {
     "timezone": {
@@ -3447,7 +3502,9 @@
       "not_here": "私信中不可用稍后发送",
       "scheduled": "已计划于 {{when}} 发送",
       "updated": "已更新，将于 {{when}} 发送",
-      "sent": "你的计划消息已在 #{{channel}} 发出"
+      "sent": "你的计划消息已在 #{{channel}} 发出",
+      "attach": "📎 附加文件",
+      "remove_file": "移除"
     },
     "self_destruct": {
       "title": "自毁消息",
@@ -4799,5 +4856,10 @@
     "label": "{{count}} 个附件",
     "more": "还有 {{count}} 个",
     "play_video": "播放视频"
+  },
+  "whats_new": {
+    "title": "Haven {{version}} 的新内容",
+    "settings_hint": "可在 设置 > 新功能 中选择何时显示。",
+    "unavailable": "此服务器上没有可用的更新说明。"
   }
 }

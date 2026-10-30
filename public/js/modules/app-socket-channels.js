@@ -353,6 +353,8 @@ _listenChannelsAndMessages() {
         // When newer messages have been trimmed, the scroll "bottom" is
         // artificial and re-coupling would yank the user forward.
         this._coupledToBottom = true;
+        // Back at the newest messages: they have been seen.
+        this._clearSeenUnread();
       } else if (st < lastScrollTop) {
         // User scrolled up: decouple immediately
         this._coupledToBottom = false;

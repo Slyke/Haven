@@ -503,6 +503,21 @@ _bindAdminControls() {
     }
   });
 
+  // Shut down cleanly from here, for servers Ctrl+C can no longer reach.
+  document.getElementById('server-shutdown-btn')?.addEventListener('click', async () => {
+    if (!confirm(t('settings.admin.shutdown_confirm'))) return;
+    const token = localStorage.getItem('haven_token');
+    if (!token) return;
+    try {
+      const r = await fetch('/api/admin/shutdown', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+      this._showToast?.(t('settings.admin.shutdown_sent'), 'success');
+    } catch (err) {
+      this._showToast?.(t('settings.admin.update_failed', { error: err.message }), 'error');
+    }
+  });
+
   // ── Whitelist controls (admin) ───────────────────────
   // Whitelist toggle, saved via admin Save button
 
@@ -594,6 +609,12 @@ _bindAdminControls() {
   document.getElementById('invites-bypass-registration-token')?.addEventListener('change', (e) => {
     this.socket.emit('update-server-setting', {
       key: 'invites_bypass_registration_token',
+      value: e.target.checked ? 'true' : 'false'
+    });
+  });
+  document.getElementById('automod-ai-enabled')?.addEventListener('change', (e) => {
+    this.socket.emit('update-server-setting', {
+      key: 'automod_ai_enabled',
       value: e.target.checked ? 'true' : 'false'
     });
   });

@@ -36,9 +36,9 @@ const sockets = [];
 function connect(token) {
   const s = io(BASE, { auth: { token }, transports: ['websocket'], forceNew: true });
   sockets.push(s);
-  // The server sends session-info immediately on connection. Listen before
-  // connect resolves so a fast handshake cannot deliver it ahead of the test.
-  s.sessionInfo = next(s, 'session-info');
+  // session-info can arrive immediately after Socket.IO's connect packet,
+  // before the promise below resumes and a caller can attach a listener.
+  s.firstSessionInfo = new Promise((resolve) => s.once('session-info', resolve));
   s.lists = new Map();
   s.memberLists = 0;
   s.on('online-users', (d) => { s.memberLists++; s.lists.set(d.channelCode, d.users); });
@@ -151,7 +151,7 @@ test('a birthday is set once, hiding keeps the date, and the year shows only whe
   assert.match((await setBirthday(A, { birthday: '2001-01-01', hidden: false })).error || '', /only be set once/, 'hiding does not free the date');
 
   const A2 = await connect(ann.token);
-  const session = await A2.sessionInfo;
+  const session = await A2.firstSessionInfo;
   assert.equal(session.birthday, '2000-06-15', 'the owner still gets the date on connect');
   assert.equal(session.birthdayHidden, true);
   assert.equal(session.birthdayHideYear, false);
@@ -175,6 +175,6 @@ test('a birthday is set once, hiding keeps the date, and the year shows only whe
   db.close();
   assert.match((await setBirthday(A, '2000-07-01')).error || '', /only be set once/, 'still refused much later');
   const A3 = await connect(ann.token);
-  assert.equal((await A3.sessionInfo)?.birthday, '2000-06-15', 'the date never changed');
+  assert.equal((await A3.firstSessionInfo)?.birthday, '2000-06-15', 'the date never changed');
   A3.close();
 });

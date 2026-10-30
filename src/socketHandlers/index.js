@@ -73,6 +73,7 @@ const registerPermExceptions = require('./permExceptions');
 const modCases = require('../modCases');
 const { quietRecipients, pingedRecipients } = require('../pushMutes');
 const registerForumUnread = require('./forumUnread');
+const registerThreadReadState = require('./threadReadState');
 const registerForumVotes = require('./forumVotes');
 const registerForumPictureVotes = require('./forumPictureVotes');
 const registerBadges = require('./badges');
@@ -131,7 +132,7 @@ function setupSocketHandlers(io, db, opts = {}) {
   } = createPermissions(db);
 
   const { getEnrichedChannels, getEnrichedChannelsAsync } = createChannelLists({
-    db, userHasPermission, roleGateAllows
+    db, userHasPermission, roleGateAllows, getUserEffectiveLevel
   });
 
   // Required roles are membership (#5649): settle every gated channel once
@@ -145,8 +146,9 @@ function setupSocketHandlers(io, db, opts = {}) {
   const activeMusic         = new Map(); // code → { url, userId, username, playbackState, ... }
   const musicQueues         = new Map(); // code → [{ id, url, title, userId, username, resolvedFrom }]
   const activeScreenSharers = new Map(); // code → Set<userId>
-  const activeScreenSessions = new Map(); // code → Map<userId, { transport, sessionId }>
+  const activeScreenSessions = new Map(); // code → Map<userId, { transport, sessionId, streamId }>
   const activeWebcamUsers   = new Map(); // code → Set<userId>
+  const activeWebcamStreamIds = new Map(); // code → Map<userId, MediaStream.id>
   const userFloodBuckets    = new Map(); // `${userId}:${bucket}` → number[] (send timestamps)
   // Presence timing for the "idle but online" flag. onlineSince is set when a
   // user goes from having zero live sockets to one; lastActiveAt advances only
@@ -197,7 +199,7 @@ function setupSocketHandlers(io, db, opts = {}) {
   const state = {
     channelUsers, voiceUsers, voiceLastActivity,
     activeMusic, musicQueues,
-    activeScreenSharers, activeScreenSessions, activeWebcamUsers,
+    activeScreenSharers, activeScreenSessions, activeWebcamUsers, activeWebcamStreamIds,
     streamViewers,
     slowModeTracker, pendingTempDelete, pendingVoiceLeave,
     botAudioManager
@@ -617,6 +619,16 @@ function setupSocketHandlers(io, db, opts = {}) {
         if (sessions) {
           sessions.delete(userId);
           if (sessions.size === 0) activeScreenSessions.delete(code);
+        }
+        const camUsers = activeWebcamUsers.get(code);
+        if (camUsers) {
+          camUsers.delete(userId);
+          if (camUsers.size === 0) activeWebcamUsers.delete(code);
+        }
+        const camStreamIds = activeWebcamStreamIds.get(code);
+        if (camStreamIds) {
+          camStreamIds.delete(userId);
+          if (camStreamIds.size === 0) activeWebcamStreamIds.delete(code);
         }
         streamViewers.delete(`${code}:${userId}`);
         for (const [key, viewers] of streamViewers) {
@@ -1085,6 +1097,8 @@ function setupSocketHandlers(io, db, opts = {}) {
 
     const camUsers = activeWebcamUsers.get(code);
     if (camUsers) { camUsers.delete(socket.user.id); if (camUsers.size === 0) activeWebcamUsers.delete(code); }
+    const camStreamIds = activeWebcamStreamIds.get(code);
+    if (camStreamIds) { camStreamIds.delete(socket.user.id); if (camStreamIds.size === 0) activeWebcamStreamIds.delete(code); }
 
     const viewerKey = `${code}:${socket.user.id}`;
     streamViewers.delete(viewerKey);
@@ -1713,11 +1727,15 @@ function setupSocketHandlers(io, db, opts = {}) {
     }
   }, 30 * 1000);
 
-  // Temporary channel cleanup (every 60s)
+  // Temporary channel cleanup (every 60s). expires_at is stored as an ISO
+  // time ("2026-10-25T03:44:00.000Z"), which compared as text with
+  // datetime('now') ("2026-10-25 02:44:00") only ran out once the date
+  // changed, so a 1 hour channel lived until the next day. datetime() reads
+  // both the same way.
   setInterval(() => {
     try {
       const expired = db.prepare(
-        "SELECT id, code, auto_delete_mode, auto_delete_interval_hours FROM channels WHERE expires_at IS NOT NULL AND expires_at <= datetime('now')"
+        "SELECT id, code, auto_delete_mode, auto_delete_interval_hours FROM channels WHERE expires_at IS NOT NULL AND datetime(expires_at) <= datetime('now')"
       ).all();
       for (const ch of expired) {
         if (ch.auto_delete_mode === 'clear') {
@@ -2713,6 +2731,7 @@ function setupSocketHandlers(io, db, opts = {}) {
     registerMessageHighlights(socket, ctx);
     registerModCases(socket, ctx);
     registerForumUnread(socket, ctx);
+    registerThreadReadState(socket, ctx);
     registerForumVotes(socket, ctx);
     registerForumPictureVotes(socket, ctx);
     registerBadges(socket, ctx);
