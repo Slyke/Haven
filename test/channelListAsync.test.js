@@ -58,6 +58,8 @@ function channel(name, opts = {}) {
   return id;
 }
 const general = channel('general');
+// Upstream's channel-type link must survive both sync and async room lists.
+db.prepare('UPDATE channels SET type_id = ? WHERE id = ?').run(2, general);
 const privateRoom = channel('private', { private: 1 });
 const gated = channel('gated', { gate: true, private: 1 });
 const readOnly = channel('read-only', { readOnly: 1 });
@@ -187,6 +189,7 @@ for (const backend of ['sqlite', 'postgres']) {
       }
       const aliceList = await lists.getEnrichedChannelsAsync(users.alice, false);
       const byName = Object.fromEntries(aliceList.map(ch => [ch.name, ch]));
+      assert.equal(byName.general.type_id, 2);
       assert.equal(byName.general.unreadCount, 1, 'imported messages count; own, notices and thread replies do not');
       assert.equal(byName.group.unreadCount, 1, 'pre-membership history stays excluded');
       assert.equal(byName.forum.forumUnread, 1);

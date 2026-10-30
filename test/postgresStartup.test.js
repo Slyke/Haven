@@ -44,6 +44,17 @@ test('PostgreSQL preview installs a real constrained schema and rolls transactio
   const user = await db.prepare('INSERT INTO users (username, password_hash) VALUES (?, ?) RETURNING id, created_at').get('Alice', 'fixture');
   assert.equal(typeof user.id, 'number');
   assert.equal(typeof user.created_at, 'string');
+  assert.deepEqual(await db.prepare('SELECT type_id FROM channels').all(), [{ type_id: null }]);
+  // Recreate the previous preview schema, with an existing account, and
+  // upgrade it without resetting identities, settings or the default room.
+  const fingerprint = await db.prepare("SELECT value FROM server_settings WHERE key = 'server_fingerprint'").get();
+  await db.exec('ALTER TABLE channels DROP COLUMN type_id; DELETE FROM haven_schema_migrations WHERE version = 2');
+  await require('../src/db/postgres/schema').initializePostgres(db);
+  assert.deepEqual(await db.prepare('SELECT version FROM haven_schema_migrations ORDER BY version').all(), [{ version: 1 }, { version: 2 }]);
+  assert.deepEqual(await db.prepare('SELECT type_id FROM channels').all(), [{ type_id: null }]);
+  assert.deepEqual(await db.prepare("SELECT value FROM server_settings WHERE key = 'server_fingerprint'").get(), fingerprint);
+  assert.equal((await db.prepare('SELECT username FROM users WHERE id = ?').get(user.id)).username, 'Alice');
+  assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM roles').get()).n, 4);
   assert.match(user.created_at, /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/);
   await assert.rejects(db.prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)').run('aLiCe', 'fixture'), err => err.code === '23505');
   await assert.rejects(db.prepare('INSERT INTO channel_members (channel_id, user_id) VALUES (?, ?)').run(9999, user.id), err => err.code === '23503');

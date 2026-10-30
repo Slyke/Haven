@@ -118,7 +118,7 @@ test('the real PostgreSQL app supports signup, login and public-room browsing', 
     assert.equal((await request('/api/public-config')).status, 200);
     assert.equal((await request('/api/auth/registration-info')).status, 200);
     assert.equal(fs.existsSync(path.join(data, 'haven.db')), false);
-    assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM haven_schema_migrations').get()).n, 1);
+    assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM haven_schema_migrations').get()).n, 2);
   });
   await t.test('case-folded concurrent signups allocate one admin and one identity', async () => {
     const admins = await Promise.all([signup('admin'), signup('ADMIN')]);

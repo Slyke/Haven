@@ -65,6 +65,7 @@ const createRoleRefresh  = require('./roleRefresh');
 const registerFerry      = require('./ferry');
 const registerGroupE2E   = require('./groupE2E');
 const registerTags       = require('./tags');
+const registerChannelTypes = require('./channelTypes');
 const registerMemberDefaults = require('./memberDefaults');
 const registerGameActivity = require('./gameActivity');
 const registerMessageHighlights = require('./messageHighlights');
@@ -2726,6 +2727,7 @@ function setupSocketHandlers(io, db, opts = {}) {
     registerFerry(socket, ctx);
     registerGroupE2E(socket, ctx);
     registerTags(socket, ctx);
+    registerChannelTypes(socket, ctx);
     registerMemberDefaults(socket, ctx);
     registerGameActivity(socket, ctx);
     registerMessageHighlights(socket, ctx);
