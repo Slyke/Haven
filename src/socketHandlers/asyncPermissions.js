@@ -115,6 +115,103 @@ module.exports = function createAsyncPermissions(db) {
     return false;
   }
 
+  async function getUserPermissions(userId) {
+    const user = await db.prepare('SELECT is_admin FROM users WHERE id = ?').get(userId);
+    if (user && user.is_admin) return ['*'];
+    const rows = await db.prepare(`
+      SELECT DISTINCT rp.permission FROM role_permissions rp
+      JOIN roles r ON rp.role_id = r.id
+      JOIN user_roles ur ON r.id = ur.role_id
+      WHERE ur.user_id = ? AND rp.allowed = 1
+    `).all(userId);
+    const perms = rows.map(r => r.permission);
+
+    try {
+      const overrides = await db.prepare(`
+        SELECT permission, allowed FROM user_role_perms WHERE user_id = ?
+      `).all(userId);
+      for (const ov of overrides) {
+        if (ov.allowed === 1 && !perms.includes(ov.permission)) {
+          perms.push(ov.permission);
+        } else if (ov.allowed === 0) {
+          const idx = perms.indexOf(ov.permission);
+          if (idx !== -1) perms.splice(idx, 1);
+        }
+      }
+    } catch (err) {
+      // Fail closed: role perms without their deny overrides could over-grant,
+      // and callers use this list to decide what someone may hand out.
+      warnOverrideRead('permission list', err);
+      return [];
+    }
+
+    return perms;
+  }
+
+  // (#5433 follow-up) Global-only variant of getUserPermissions, for gating
+  // UI that performs a server-wide action regardless of which channel is
+  // active (e.g. the sidebar "Create Channel" section, which always creates
+  // a top-level channel). getUserPermissions() flattens server-wide AND
+  // channel-scoped grants together for per-channel UI (context menus opened
+  // for a specific channel), which is correct there, but that same flat
+  // list also made the always-visible sidebar button appear for users who
+  // only held create_channel in one sub-channel, a dead control since every
+  // click would be denied server-side. This variant excludes any
+  // channel-scoped role assignment or override (channel_id IS NULL only).
+  async function getUserGlobalPermissions(userId) {
+    const user = await db.prepare('SELECT is_admin FROM users WHERE id = ?').get(userId);
+    if (user && user.is_admin) return ['*'];
+    const rows = await db.prepare(`
+      SELECT DISTINCT rp.permission FROM role_permissions rp
+      JOIN roles r ON rp.role_id = r.id
+      JOIN user_roles ur ON r.id = ur.role_id
+      WHERE ur.user_id = ? AND rp.allowed = 1 AND ur.channel_id IS NULL
+    `).all(userId);
+    const perms = rows.map(r => r.permission);
+
+    try {
+      const overrides = await db.prepare(`
+        SELECT permission, allowed FROM user_role_perms WHERE user_id = ? AND channel_id IS NULL
+      `).all(userId);
+      for (const ov of overrides) {
+        if (ov.allowed === 1 && !perms.includes(ov.permission)) {
+          perms.push(ov.permission);
+        } else if (ov.allowed === 0) {
+          const idx = perms.indexOf(ov.permission);
+          if (idx !== -1) perms.splice(idx, 1);
+        }
+      }
+    } catch (err) {
+      // Fail closed: role perms without their deny overrides could over-grant,
+      // and callers use this list to decide what someone may hand out.
+      warnOverrideRead('permission list', err);
+      return [];
+    }
+
+    return perms;
+  }
+
+  async function getUserRoles(userId) {
+    return await db.prepare(`
+      SELECT DISTINCT r.id, r.name, r.level, r.scope, r.color, r.color2, r.color_shimmer, ur.channel_id
+      FROM roles r
+      JOIN user_roles ur ON r.id = ur.role_id
+      WHERE ur.user_id = ?
+      ORDER BY r.level DESC
+    `).all(userId);
+  }
+
+  async function getUserUploadMb(userId) {
+    const base = parseInt((await db.prepare("SELECT value FROM server_settings WHERE key = 'max_upload_mb'").get())?.value, 10) || 25;
+    const row = await db.prepare(`
+      SELECT MAX(r.max_upload_mb) AS cap FROM roles r
+      JOIN user_roles ur ON ur.role_id = r.id
+      WHERE ur.user_id = ? AND ur.channel_id IS NULL AND r.max_upload_mb IS NOT NULL
+    `).get(userId);
+    const cap = row && row.cap ? parseInt(row.cap, 10) : 0;
+    return Math.max(base, cap || 0);
+  }
+
   async function roleGateAllows(userId, channel) {
     const gate = parseRoleGate(channel && channel.role_gate);
     if (!gate) return true;
@@ -124,5 +221,5 @@ module.exports = function createAsyncPermissions(db) {
     return gate.mode === 'all' ? gate.roles.every(r => held.has(r)) : gate.roles.some(r => held.has(r));
   }
 
-  return { userHasPermission, roleGateAllows, getUserEffectiveLevel };
+  return { userHasPermission, roleGateAllows, getUserEffectiveLevel, getUserPermissions, getUserGlobalPermissions, getUserRoles, getUserUploadMb };
 };

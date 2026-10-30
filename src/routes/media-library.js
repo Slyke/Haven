@@ -75,7 +75,7 @@ module.exports = function registerMediaLibrary(deps) {
 
   app.get('/api/sounds', async (req, res) => {
     const token = req.headers.authorization?.split(' ')[1];
-    const user = token ? verifyToken(token) : null;
+    const user = req.postgresUser || (token ? verifyToken(token) : null);
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
     const { getAsyncDb } = require('../database');
     try {
@@ -172,7 +172,7 @@ module.exports = function registerMediaLibrary(deps) {
   // -- User sound preferences ---------------------------------------------------
   app.get('/api/user-sound-prefs', async (req, res) => {
     const token = req.headers.authorization?.split(' ')[1];
-    const user = token ? verifyToken(token) : null;
+    const user = req.postgresUser || (token ? verifyToken(token) : null);
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
     const { getAsyncDb } = require('../database');
     try {
@@ -280,7 +280,7 @@ module.exports = function registerMediaLibrary(deps) {
 
   app.get('/api/emojis', async (req, res) => {
     const token = req.headers.authorization?.split(' ')[1];
-    const user = token ? verifyToken(token) : null;
+    const user = req.postgresUser || (token ? verifyToken(token) : null);
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
     const { getAsyncDb } = require('../database');
     try {
@@ -293,7 +293,7 @@ module.exports = function registerMediaLibrary(deps) {
   // with the OS font. Falls back to the client's built-in list when unavailable.
   app.get('/api/standard-emojis', (req, res) => {
     const token = req.headers.authorization?.split(' ')[1];
-    if (!token || !verifyToken(token)) return res.status(401).json({ error: 'Unauthorized' });
+    if (!req.postgresUser && (!token || !verifyToken(token))) return res.status(401).json({ error: 'Unauthorized' });
     res.json(require('../emoji').getEmojiData() || { categories: {}, names: {}, modifierBase: [] });
   });
 

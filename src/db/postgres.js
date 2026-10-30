@@ -1,13 +1,12 @@
 'use strict';
 
-// Temporary query-only migration stage until schema initialization and all
-// app calls support PostgreSQL. The SQLite compatibility bridge and startup
-// guard can then be removed; pg stays an on-demand add-on selected by
-// HAVEN_DATABASE_URL.
+// Temporary migration adapter until all app calls support PostgreSQL. The
+// SQLite compatibility bridge and preview startup guard can then be removed;
+// pg stays an on-demand add-on selected by HAVEN_DATABASE_URL.
 //
-// It supports positional ? bindings and get/all/run. Schema upgrades,
-// transactions, named bindings and SQLite-specific SQL are not migrated yet;
-// initDatabase() still refuses a full PostgreSQL server start.
+// It supports positional ? bindings, get/all/run and connection-pinned
+// transactions. Full application support is still in progress; the opt-in
+// browser preview initializes its own PostgreSQL schema.
 
 // Translate only placeholders, leaving SQL strings, identifiers, comments
 // and PostgreSQL dollar-quoted bodies alone. Values always go through pg's
@@ -79,19 +78,29 @@ class PostgresDatabase {
     this._closing = null;
   }
 
+  _getPool() {
+    if (this._closed) throw new Error('The database connection is not open');
+    if (!this._pool) {
+      const { Pool, types } = this._pg;
+      this._pool = new Pool({
+        connectionString: this._url, max: 10, connectionTimeoutMillis: 5000,
+        // Dates in the app are UTC strings, as on SQLite. pg's default Date
+        // parser would reinterpret timestamp-without-zone in the host's zone.
+        types: { getTypeParser: (oid, format) => oid === 1114 || oid === 1082 ? value => value : types.getTypeParser(oid, format) },
+      });
+      // An idle pool error must not crash the process. Report the code only;
+      // connection strings can contain a password.
+      this._pool.on('error', err => console.warn('[db] PostgreSQL idle connection failed:', err.code || 'connection error'));
+    }
+    return this._pool;
+  }
+
   async _query(compiled, params) {
     if (this._closed) throw new Error('The database connection is not open');
     if (params.length !== compiled.count) {
       throw new Error(`Expected ${compiled.count} SQL parameters, got ${params.length}`);
     }
-    if (!this._pool) {
-      const { Pool } = this._pg;
-      this._pool = new Pool({ connectionString: this._url, max: 10, connectionTimeoutMillis: 5000 });
-      // An idle pool error must not crash the process. Report the code only;
-      // connection strings can contain a password.
-      this._pool.on('error', err => console.warn('[db] PostgreSQL idle connection failed:', err.code || 'connection error'));
-    }
-    const result = await this._pool.query(compiled.text, params);
+    const result = await this._getPool().query(compiled.text, params);
     if (Array.isArray(result)) throw new Error('PostgreSQL queries must contain a single statement');
 
     // pg returns int8 (ids and COUNT(*)) as strings. Keep the same numeric
@@ -119,6 +128,33 @@ class PostgresDatabase {
       all: async (...params) => (await query(params)).rows,
       run: async (...params) => ({ changes: (await query(params)).rowCount || 0 }),
     };
+  }
+
+  // Schema files are trusted application SQL. Query callers still go through
+  // prepare(), which rejects multiple result sets and binds all user values.
+  async exec(sql) {
+    await this._getPool().query(sql);
+  }
+
+  async withTransaction(fn) {
+    if (this._transactionClient) throw new Error('Nested PostgreSQL transactions are not supported');
+    const client = await this._getPool().connect();
+    const tx = new PostgresDatabase({ pool: client });
+    tx._transactionClient = true;
+    let rollbackError;
+    try {
+      await client.query('BEGIN');
+      const result = await fn(tx);
+      await client.query('COMMIT');
+      return result;
+    } catch (err) {
+      try { await client.query('ROLLBACK'); } catch (failure) { rollbackError = failure; }
+      throw err;
+    } finally {
+      tx._closed = true;
+      // A client that could not roll back cannot safely return to the pool.
+      client.release(rollbackError);
+    }
   }
 
   close() {

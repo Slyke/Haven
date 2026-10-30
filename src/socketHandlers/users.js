@@ -1346,3 +1346,5 @@ module.exports = function register(socket, ctx) {
     try { txn(); } catch (err) { console.error('set-nicknames-bulk error:', err); }
   });
 };
+
+module.exports.cleanChannelOrder = cleanChannelOrder;

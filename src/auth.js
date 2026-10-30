@@ -513,6 +513,12 @@ function provisionNewUser(db, userId, username, io) {
 }
 
 router.post('/register', authLimiter, async (req, res) => {
+  if (getAsyncDb().kind === 'postgres') {
+    return require('./db/postgres/register').registerPostgres(req, res, {
+      db: getAsyncDb(), sanitizeString, adminUsername: ADMIN_USERNAME,
+      verifyTurnstile, downloadSSOAvatar, signOptions: _sessionSignOptionsAsync, secret: JWT_SECRET
+    });
+  }
   try {
     const username = sanitizeString(req.body.username, 20);
     const password = typeof req.body.password === 'string' ? req.body.password : '';
@@ -795,6 +801,10 @@ router.post('/login', authLimiter, async (req, res) => {
         reason: (typeof ban.reason === 'string' && ban.reason.trim()) ? ban.reason.trim() : '',
         canAppeal: true
       });
+    }
+
+    if (asyncDb.kind === 'postgres' && process.env.HAVEN_POSTGRES_PREVIEW === '1' && (user.totp_enabled || user.temp_password_hash || user.must_change_password)) {
+      return res.status(501).json({ error: 'This sign-in flow is not available on this server yet', code: 'postgres_preview_unsupported' });
     }
 
     // Bootstrap admin from ADMIN_USERNAME env only when NO admin exists

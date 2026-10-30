@@ -77,3 +77,53 @@ test('close ends its connection once and later queries reject', async () => {
   assert.equal(ended(), 1);
   await assert.rejects(db.prepare('SELECT 1').get(), /not open/);
 });
+
+test('transactions pin all awaited queries to one client and release it on commit or rollback', async () => {
+  const clients = [];
+  const db = new PostgresDatabase({ pool: {
+    async query() { throw new Error('transaction escaped to the pool'); },
+    async connect() {
+      const calls = [], releases = [];
+      const client = {
+        calls, releases,
+        async query(sql, params) { calls.push({ sql, params }); return { rows: [{ value: params?.[0] }], rowCount: 1 }; },
+        release(err) { releases.push(err); },
+      };
+      clients.push(client);
+      return client;
+    },
+  } });
+  let escaped;
+  assert.equal(await db.withTransaction(async tx => {
+    escaped = tx;
+    await Promise.resolve();
+    await assert.rejects(tx.withTransaction(() => {}), /Nested/);
+    return (await tx.prepare('SELECT ?').get('bound')).value;
+  }), 'bound');
+  assert.deepEqual(clients[0].calls.map(call => call.sql), ['BEGIN', 'SELECT $1', 'COMMIT']);
+  assert.deepEqual(clients[0].releases, [undefined]);
+  await assert.rejects(escaped.prepare('SELECT 1').get(), /not open/);
+  const failure = new Error('application failure');
+  await assert.rejects(db.withTransaction(async tx => {
+    await tx.prepare('SELECT ?').get('undone');
+    throw failure;
+  }), err => err === failure);
+  assert.deepEqual(clients[1].calls.map(call => call.sql), ['BEGIN', 'SELECT $1', 'ROLLBACK']);
+  assert.deepEqual(clients[1].releases, [undefined]);
+});
+
+test('a failed rollback discards its client and preserves the original error', async () => {
+  const failure = new Error('original query failure');
+  const rollback = new Error('connection lost');
+  let released;
+  const db = new PostgresDatabase({ pool: {
+    async connect() {
+      return {
+        async query(sql) { if (sql === 'ROLLBACK') throw rollback; return { rows: [] }; },
+        release(err) { released = err; },
+      };
+    },
+  } });
+  await assert.rejects(db.withTransaction(async () => { throw failure; }), err => err === failure);
+  assert.equal(released, rollback);
+});

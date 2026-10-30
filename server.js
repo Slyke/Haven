@@ -1,3 +1,4 @@
+(async () => {
 // ── Resolve data directory BEFORE loading .env ────────────
 const { DATA_DIR, DB_PATH, ENV_PATH, CERTS_DIR, UPLOADS_DIR, DELETED_ATTACHMENTS_DIR, GAMES_ROMS_DIR } = require('./src/paths');
 const { purgeDeletedAttachments, resolveDeletedRetentionDays } = require('./src/deletedAttachments');
@@ -134,7 +135,7 @@ if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) {
 const vapidEmail = process.env.VAPID_EMAIL || 'mailto:admin@haven.local';
 webpush.setVapidDetails(vapidEmail, process.env.VAPID_PUBLIC_KEY, process.env.VAPID_PRIVATE_KEY);
 
-const { initDatabase } = require('./src/database');
+const { initDatabaseAsync } = require('./src/database');
 const { router: authRoutes, authLimiter, verifyToken } = require('./src/auth');
 const { setupSocketHandlers, sanitizeText, sanitizeSoundName, sanitizeBorderTransform, toReplyContext } = require('./src/socketHandlers');
 const { initFerry, stopFerry } = require('./src/ferry');
@@ -417,6 +418,19 @@ app.set('trust proxy', trustProxySetting());
 const _clientIp = require('./src/clientIp');
 let _ipBanCache = { set: new Set(), cidrs: [], expires: 0 };
 function _refreshIpBanCache() {
+  const current = require('./src/database').getDb();
+  if (current?.kind === 'postgres') return current.prepare('SELECT ip FROM ip_bans').all().then(rows => {
+    const set = new Set(), cidrs = [];
+    for (const row of rows) {
+      if (!row.ip) continue;
+      if (row.ip.includes('/')) cidrs.push(row.ip);
+      else set.add(_clientIp.normalizeIp(row.ip));
+    }
+    _ipBanCache = { set, cidrs, expires: Date.now() + 30000 };
+  }).catch(err => {
+    console.warn('[ip-bans] Could not read the ban list, keeping the last one:', err.code || err.message);
+    _ipBanCache = { ..._ipBanCache, expires: Date.now() + 5000 };
+  });
   try {
     const { getDb } = require('./src/database');
     const rows = getDb().prepare('SELECT ip FROM ip_bans').all();
@@ -642,6 +656,7 @@ app.disable('x-powered-by');
 // where appropriate. (#5347 v3.15.7)
 app.use(express.json({ limit: '128kb' }));
 app.use(express.urlencoded({ extended: false, limit: '128kb' }));
+require('./src/db/postgres/http').installPostgresPreviewHttp(app);
 
 // ── Self-hosted fonts (long-lived cache) ─────────────────
 // Fonts never change for a given filename, so let clients cache them for a
@@ -750,11 +765,11 @@ app.get('/api/plugins', (req, res) => {
 });
 
 // API: list available themes (*.theme.css files)
-app.get('/api/themes', (req, res) => {
+app.get('/api/themes', async (req, res) => {
   try {
     let published = [];
     try {
-      const row = db.prepare("SELECT value FROM server_settings WHERE key = 'published_themes'").get();
+      const row = await db.async.prepare("SELECT value FROM server_settings WHERE key = 'published_themes'").get();
       if (row) {
         const stored = JSON.parse(row.value);
         if (Array.isArray(stored)) published = stored;
@@ -1087,7 +1102,7 @@ require('./src/routes/profile')({ uploadDiskGuard, app, recordUploadOwnership, r
 // address should not be handed the server's public hostname.
 app.get('/api/connection-address', (req, res) => {
   const token = req.headers.authorization?.split(' ')[1];
-  const user = token ? verifyToken(token) : null;
+  const user = req.postgresUser || (token ? verifyToken(token) : null);
   if (!user) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const tunnel = getTunnelStatus();
@@ -1196,20 +1211,20 @@ app.get('/api/version', (req, res) => {
 // ── Public config (unauthenticated: safe, read-only aesthetics) ──
 // Returns the admin-configured default theme so the login page can match
 // the server's look for first-time visitors who have no localStorage preference.
-app.get('/api/public-config', (req, res) => {
+app.get('/api/public-config', async (req, res) => {
   try {
     const { getDb } = require('./src/database');
-    const db = getDb();
-    const themeRow = db.prepare("SELECT value FROM server_settings WHERE key = 'default_theme'").get();
-    const publishedThemesRow = db.prepare("SELECT value FROM server_settings WHERE key = 'published_themes'").get();
-    const localeRow = db.prepare("SELECT value FROM server_settings WHERE key = 'default_locale'").get();
-    const titleRow = db.prepare("SELECT value FROM server_settings WHERE key = 'server_title'").get();
-    const tosRow = db.prepare("SELECT value FROM server_settings WHERE key = 'custom_tos'").get();
-    const nameRow = db.prepare("SELECT value FROM server_settings WHERE key = 'server_name'").get();
-    const iconRow = db.prepare("SELECT value FROM server_settings WHERE key = 'server_icon'").get();
-    const adminPwResetRow = db.prepare("SELECT value FROM server_settings WHERE key = 'admin_password_reset_enabled'").get();
-    const loginSetting = (k) => db.prepare('SELECT value FROM server_settings WHERE key = ?').get(k)?.value || '';
-    const oidcConfig = require('./src/oidc').getOidcConfig();
+    const db = getDb().async;
+    const themeRow = await db.prepare("SELECT value FROM server_settings WHERE key = 'default_theme'").get();
+    const publishedThemesRow = await db.prepare("SELECT value FROM server_settings WHERE key = 'published_themes'").get();
+    const localeRow = await db.prepare("SELECT value FROM server_settings WHERE key = 'default_locale'").get();
+    const titleRow = await db.prepare("SELECT value FROM server_settings WHERE key = 'server_title'").get();
+    const tosRow = await db.prepare("SELECT value FROM server_settings WHERE key = 'custom_tos'").get();
+    const nameRow = await db.prepare("SELECT value FROM server_settings WHERE key = 'server_name'").get();
+    const iconRow = await db.prepare("SELECT value FROM server_settings WHERE key = 'server_icon'").get();
+    const adminPwResetRow = await db.prepare("SELECT value FROM server_settings WHERE key = 'admin_password_reset_enabled'").get();
+    const loginSetting = async (k) => (await db.prepare('SELECT value FROM server_settings WHERE key = ?').get(k))?.value || '';
+    const oidcConfig = db.kind === 'postgres' ? { enabled: false } : require('./src/oidc').getOidcConfig();
     let storedPublishedThemes = [];
     try { storedPublishedThemes = JSON.parse(publishedThemesRow?.value || '[]'); } catch { /* malformed setting: treat as no published themes */ }
     const publishedThemes = compatibleThemeFiles(THEMES_DIR, storedPublishedThemes);
@@ -1223,10 +1238,10 @@ app.get('/api/public-config', (req, res) => {
       server_name: nameRow?.value || process.env.SERVER_NAME || '',
       server_icon: iconRow?.value || '',
       // The login page's look (#5819), all of it shown to anyone who visits.
-      login_logo: loginSetting('login_show_icon') === 'true' ? (iconRow?.value || '') : '',
-      login_background: loginSetting('login_show_banner') === 'true' ? loginSetting('server_banner') : '',
-      login_message: loginSetting('login_message'),
-      login_css: loginSetting('login_css'),
+      login_logo: (await loginSetting('login_show_icon')) === 'true' ? (iconRow?.value || '') : '',
+      login_background: (await loginSetting('login_show_banner')) === 'true' ? await loginSetting('server_banner') : '',
+      login_message: await loginSetting('login_message'),
+      login_css: await loginSetting('login_css'),
       // Surface security-relevant settings users may want to know about
       // before signing up (issue #5300). Allowing a user to *see* whether
       // an admin can reset their password is the trust-and-warning half
@@ -3056,7 +3071,8 @@ const io = new Server(server, {
 });
 
 // Initialize
-const db = initDatabase();
+const db = await initDatabaseAsync();
+const postgresPreview = db.kind === 'postgres';
 
 // (#5335) Seed starter stickers now that the DB is ready.
 
@@ -3064,18 +3080,25 @@ const db = initDatabase();
 // Opt-in: off unless the admin enables it or UNICODE_EMOJI_AUTO_UPDATE forces it.
 {
   const emoji = require('./src/emoji');
-  const row = db.prepare("SELECT value FROM server_settings WHERE key = 'unicode_emoji_auto_update'").get();
+  const row = await db.async.prepare("SELECT value FROM server_settings WHERE key = 'unicode_emoji_auto_update'").get();
   emoji.ensureEmojiData(emoji.autoUpdateEnabled(row?.value));
 }
 
 // Load the admin-configured Referrer-Policy into the in-memory cache.
 try {
-  const rp = db.prepare("SELECT value FROM server_settings WHERE key = 'referrer_policy'").get()?.value;
+  const rp = (await db.async.prepare("SELECT value FROM server_settings WHERE key = 'referrer_policy'").get())?.value;
   if (rp && VALID_REFERRER_POLICIES.includes(rp)) currentReferrerPolicy = rp;
 } catch (err) {
   console.warn(`[security] Could not load the saved Referrer-Policy, using ${DEFAULT_REFERRER_POLICY}:`, err.message);
 }
 
+if (postgresPreview) {
+  console.log('[db] PostgreSQL browser preview: signup, login and public-room browsing are enabled; unsupported actions and background integrations are disabled.');
+  await _refreshIpBanCache();
+  app.set('io', io);
+  setFcmAdminEnabled(false);
+  socketRuntime = require('./src/socketHandlers/postgresPreview').setupPostgresPreview(io, db, { isIpBanned });
+} else {
 // ── Admin password reset (one-time, from .env) ───────────
 // Set ADMIN_RESET_PASSWORD in .env, restart, and it resets the admin's password.
 // The variable is removed from .env automatically after use.
@@ -3341,6 +3364,8 @@ initFerry({
   }
 });
 
+}
+
 registerProcessCleanup();
 // Close the Discord socket deliberately on shutdown. Without this a container
 // restart leaves Discord holding a session it will keep feeding for a minute.
@@ -3349,7 +3374,7 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
 }
 
 // ── Auto-cleanup, auto-backup, dynamic DNS and updates: src/routes/maintenance.js ──
-require('./src/routes/maintenance')({ app, UPLOAD_PATH_RE, isSafeUploadRelPath, moveUploadToDeleted: storage.softDelete, verifyAdminFromDb, buildBackupFile, db, late });
+if (!postgresPreview) require('./src/routes/maintenance')({ app, UPLOAD_PATH_RE, isSafeUploadRelPath, moveUploadToDeleted: storage.softDelete, verifyAdminFromDb, buildBackupFile, db, late });
 
 // ── Catch-all: 404 ──────────────────────────────────────
 // Must be registered AFTER every app.get/post/etc. handler. Express
@@ -3578,16 +3603,16 @@ ${row('Admin:', process.env.ADMIN_USERNAME || 'admin')}
   }
   // Tunnel is now started manually via the admin panel button (no auto-start)
   // Dynamic DNS auto-updater (kicks in only if DDNS_PROVIDER is set in .env)
-  try { startDdns(); } catch (err) { console.warn('[ddns] failed to start:', err && err.message); }
+  try { if (!postgresPreview) startDdns(); } catch (err) { console.warn('[ddns] failed to start:', err && err.message); }
 }
 
 // Storage has to answer before anything is served. One that cannot be used
 // stops the server here instead of leaving it up with no media; the explicit
 // exit matters, because the rejection handler above keeps the process alive.
-storage.prepare(db).then(() => {
-  seedStarterStickers();   // catches and logs its own errors
+(postgresPreview ? storage.ping() : storage.prepare(db)).then(() => {
+  if (!postgresPreview) seedStarterStickers();   // catches and logs its own errors
   server.listen(PORT, HOST, onListening);
-  storage.keepIndexed(db);
+  if (!postgresPreview) storage.keepIndexed(db);
 }, (err) => {
   console.error(`\n❌ Haven could not start: ${err.message}`);
   logCrash('Storage unavailable (exiting)', err);
@@ -3602,10 +3627,13 @@ function gracefulShutdown(signal) {
   botAudioManager?.shutdown();
   require('./src/mediaTools').stopExiftool();
   io.close();
-  const finish = () => {
+  let finishing = false;
+  const finish = async () => {
+    if (finishing) return;
+    finishing = true;
     // Closing the database writes out its journal, so the next start does
     // not have to replay it.
-    try { db.close(); } catch (err) { console.warn('[shutdown] database close failed:', err.message); }
+    try { await db.close(); } catch (err) { console.warn('[shutdown] database close failed:', err.message); }
     process.exit(0);
   };
   server.close(finish);
@@ -3620,3 +3648,8 @@ late.shutdown = (reason) => {
   try { stopFerry(); } catch { /* shutting down anyway; Discord drops the session on its own */ }
   gracefulShutdown(reason);
 };
+
+})().catch(err => {
+  console.error('Haven could not start:', err.code || err.message);
+  process.exit(1);
+});

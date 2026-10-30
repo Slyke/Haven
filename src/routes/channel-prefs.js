@@ -11,7 +11,7 @@ module.exports = function registerChannelPrefs({ app, verifyToken }) {
   // ever lived client-side).
   app.get('/api/user/channel-prefs', async (req, res) => {
     const token = req.headers.authorization?.split(' ')[1];
-    const user = token ? verifyToken(token) : null;
+    const user = req.postgresUser || (token ? verifyToken(token) : null);
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
     try {
       const { getAsyncDb } = require('../database');
@@ -27,7 +27,7 @@ module.exports = function registerChannelPrefs({ app, verifyToken }) {
 
   app.post('/api/user/channel-prefs/mute', express.json({ limit: '4kb' }), async (req, res) => {
     const token = req.headers.authorization?.split(' ')[1];
-    const user = token ? verifyToken(token) : null;
+    const user = req.postgresUser || (token ? verifyToken(token) : null);
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
     const { code, muted } = req.body || {};
     if (typeof code !== 'string' || !code.length || code.length > 64)
@@ -52,7 +52,7 @@ module.exports = function registerChannelPrefs({ app, verifyToken }) {
   // localStorage set up at once (or to converge after offline edits).
   app.put('/api/user/channel-prefs/muted', express.json({ limit: '16kb' }), (req, res) => {
     const token = req.headers.authorization?.split(' ')[1];
-    const user = token ? verifyToken(token) : null;
+    const user = req.postgresUser || (token ? verifyToken(token) : null);
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
     const codes = Array.isArray(req.body?.codes) ? req.body.codes : null;
     if (!codes || codes.length > 500)

@@ -185,3 +185,23 @@ test('full schema initialization reopens the same database without stale stateme
     assert.ok(plan.some(row => /SEARCH users USING INDEX/.test(row.detail)), 'case-insensitive login retains the username index');
   } finally { db.close(); }
 });
+
+test('ordinary PostgreSQL startup stays blocked even with the preview flag set', {
+  // PostgreSQL startup tests deliberately run with the source guard removed.
+  skip: !!process.env.HAVEN_TEST_POSTGRES_URL,
+}, async (t) => {
+  const originalUrl = process.env.HAVEN_DATABASE_URL;
+  const originalPreview = process.env.HAVEN_POSTGRES_PREVIEW;
+  t.after(() => {
+    if (originalUrl === undefined) delete process.env.HAVEN_DATABASE_URL;
+    else process.env.HAVEN_DATABASE_URL = originalUrl;
+    if (originalPreview === undefined) delete process.env.HAVEN_POSTGRES_PREVIEW;
+    else process.env.HAVEN_POSTGRES_PREVIEW = originalPreview;
+  });
+  process.env.HAVEN_DATABASE_URL = 'postgres://unused:unused@127.0.0.1:1/unused';
+  const { initDatabaseAsync } = require('../src/database');
+  for (const flag of ['', '1']) {
+    process.env.HAVEN_POSTGRES_PREVIEW = flag;
+    await assert.rejects(initDatabaseAsync(), /PostgreSQL server startup is disabled while database migration is in progress/);
+  }
+});

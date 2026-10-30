@@ -8,7 +8,7 @@ const { sectionsSince, readChangelog } = require('../changelog');
 module.exports = function register({ app, verifyToken }) {
   app.get('/api/changelog', (req, res) => {
     const token = req.headers.authorization?.split(' ')[1];
-    if (!token || !verifyToken(token)) return res.status(401).json({ error: 'Unauthorized' });
+    if (!req.postgresUser && (!token || !verifyToken(token))) return res.status(401).json({ error: 'Unauthorized' });
     const current = require('../../package.json').version;
     const since = typeof req.query.since === 'string' ? req.query.since.slice(0, 40) : '';
     res.json({ current, sections: sectionsSince(readChangelog(), since, current) });

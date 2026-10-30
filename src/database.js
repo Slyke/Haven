@@ -20,9 +20,9 @@ let db;
 
 function initDatabase() {
   const driver = fromEnv();
-  // The query adapter is available to migration tests, but schema startup
-  // and legacy synchronous calls still require SQLite. Never split a live
-  // server's reads and writes across two different databases.
+  // Full startup and legacy synchronous calls still require SQLite. The
+  // opt-in PostgreSQL browser preview uses initDatabaseAsync() below. Never
+  // split a live server's reads and writes across two different databases.
   if (driver.kind !== 'sqlite') {
     throw new Error('PostgreSQL full server startup is not supported yet. Leave HAVEN_DATABASE_URL unset to use SQLite; the query adapter is available for migration tests.');
   }
@@ -1759,6 +1759,26 @@ function initDatabase() {
   return db;
 }
 
+// The legacy initializer stays synchronous for SQLite callers and tests.
+// PostgreSQL boot is explicit while unsupported app features are migrated.
+async function initDatabaseAsync() {
+  const url = String(process.env.HAVEN_DATABASE_URL || '').trim();
+  if (!url) return initDatabase();
+  // PostgreSQL is not ready for normal server use. Developers can comment out
+  // this throw and set HAVEN_POSTGRES_PREVIEW=1 to test the preview below.
+  throw new Error('PostgreSQL server startup is disabled while database migration is in progress. Leave HAVEN_DATABASE_URL unset to use SQLite.');
+  if (process.env.HAVEN_POSTGRES_PREVIEW !== '1') return initDatabase();
+  const driver = fromEnv();
+  try {
+    await require('./db/postgres/schema').initializePostgres(driver);
+    db = driver;
+    return db;
+  } catch (err) {
+    try { await driver.close(); } catch { /* preserve the startup failure */ }
+    throw err;
+  }
+}
+
 function getDb() {
   return db;
 }
@@ -1769,4 +1789,4 @@ function getAsyncDb() {
   return db.async;
 }
 
-module.exports = { initDatabase, getDb, getAsyncDb };
+module.exports = { initDatabase, initDatabaseAsync, getDb, getAsyncDb };
