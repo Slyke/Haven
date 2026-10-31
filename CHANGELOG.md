@@ -15,6 +15,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Haven uses [Sema
 - Blocked file types under Settings > Admin > Content > Uploads & Limits (#5833): list types such as exe, bat or dll, and nobody can upload files of those types. Empty by default.
 - Listen Together plays Spotify playlists and albums: sharing one queues its songs in order, found on YouTube like single Spotify songs. It used to play one song named after the playlist.
 - What's new after an update: a popup with the release notes since the version you last saw. Settings > What's New picks which updates bring it up (every update, new features, big updates only, or never), with the parts of the version number that count underlined. The notes come from the server's own changelog.
+- A Copy button on code blocks (thanks Roolk, #5844).
 - Channel types: save a set of Channel Functions (text, pictures and files, reactions, read only, voice, screen share, music, soundboard) under a name and an icon, in Settings > Server > Channel Types. Right-click a channel and pick Channel Type to give it those functions; the sidebar then shows the type's icon instead of separate ones. Editing a type updates every channel that has it, and changing a function on one channel by hand takes it out of its type. Voice only, Text only and Announcements are there to start from.
 
 ### Changed
@@ -22,6 +23,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Haven uses [Sema
 - Login session length moved from Uploads & Limits to Settings > Admin > Safety > Security, where people look for it (#5834).
 
 ### Fixed
+- Changing camera quality or device several times quickly could leave an older camera running or showing, and stopping the camera during a change could leave it on (thanks Roolk, #5843).
+- Installing the voice relay failed in Docker and Podman on a host with Linux kernel 7, such as a current Fedora, with "npm error command failed" (#5845). The relay's build for that kernel needs newer system libraries than the image has, so the install now falls back to the kernel 6 build, which runs fine there.
+- In a narrow window, the Get the Desktop App and Android App pills pushed the Join Voice button off the edge. They now shrink to their icons, then hide.
 - With a camera and a screen share on at the same time, the camera could show up as the screen share or the other way round, and people could disagree about which was which. Each one is now told apart by its own stream (thanks Roolk, #5841).
 - Changing camera quality left your own camera preview blank (thanks Roolk, #5842). People who join after the change also see the new camera now.
 - Ctrl+V with nothing focused (after clicking a message or the channel list) dropped the pasted picture. It now goes into the message box (thanks Amnibro, #5839).

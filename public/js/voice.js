@@ -26,6 +26,9 @@ class VoiceManager {
     this.rawStream = null;          // Raw mic stream (for local talk detection)
     this.screenStream = null;       // Screen share MediaStream
     this.webcamStream = null;       // Webcam video MediaStream
+    this._cameraSwitchGeneration = 0;
+    this._cameraSwitchQueue = Promise.resolve();
+    this._webcamStopping = false;
     this.isScreenSharing = false;
     this.isWebcamActive = false;
     this.peers = new Map();         // userId → { connection, stream, username }
@@ -2555,7 +2558,25 @@ class VoiceManager {
   }
 
   async stopWebcam({ teardown = false } = {}) {
-    if (!this.isWebcamActive || !this.webcamStream) return;
+    if (!this.isWebcamActive || !this.webcamStream || (this._webcamStopping && !teardown)) return;
+    this._webcamStopping = true;
+    this._cameraSwitchGeneration = (this._cameraSwitchGeneration || 0) + 1;
+    try {
+      await this._stopWebcamNow(teardown);
+    } finally {
+      this._webcamStopping = false;
+    }
+  }
+
+  async _stopWebcamNow(teardown) {
+    // Leaving voice does not wait for this and closes the peers right after,
+    // so that path stays synchronous up to the track stop. Otherwise, wait for
+    // any replacement already changing peer/relay tracks. Pending getUserMedia
+    // captures are invalidated and will stop themselves on return.
+    if (!teardown) {
+      await (this._cameraSwitchQueue || Promise.resolve()).catch(err => console.warn('[Voice] camera switch failed before stop:', err));
+      if (!this.isWebcamActive || !this.webcamStream) return;
+    }
     if (this._relay) await this._relay.unpublish('webcam').catch(() => { /* unpublish logs its own failures */ });
 
     const tracks = this.webcamStream.getTracks();
@@ -2599,7 +2620,9 @@ class VoiceManager {
   }
 
   async switchCamera(deviceId) {
-    if (!this.isWebcamActive) return;
+    if (!this.isWebcamActive || this._webcamStopping) return;
+    const operation = (this._cameraSwitchGeneration || 0) + 1;
+    this._cameraSwitchGeneration = operation;
     const videoConstraints = this._webcamConstraints(deviceId);
 
     let newStream;
@@ -2610,38 +2633,56 @@ class VoiceManager {
       return;
     }
 
-    const newTrack = newStream.getVideoTracks()[0];
-
-    // Replace the track on all peers concurrently. replaceTrack needs no
-    // renegotiation and each peer is independent, so waiting on them in turn
-    // only delayed the last peer. (#5426)
-    const swaps = [];
-    for (const [, peer] of this.peers) {
-      const senders = peer.connection.getSenders();
-      const camSender = senders.find(s => s.track && s.track.kind === 'video' &&
-        this.webcamStream && this.webcamStream.getVideoTracks().includes(s.track));
-      if (camSender) {
-        swaps.push(camSender.replaceTrack(newTrack).catch(e =>
-          console.warn('[Voice] replaceTrack (cam) failed:', e)
-        ));
+    const apply = (this._cameraSwitchQueue || Promise.resolve()).catch(() => {}).then(async () => {
+      if (!this.isWebcamActive || this._webcamStopping ||
+          operation !== this._cameraSwitchGeneration || !this.webcamStream) {
+        newStream.getTracks().forEach(t => t.stop());
+        return;
       }
-    }
-    await Promise.all(swaps);
-    if (this._relay) await this._relay.replace('webcam', newTrack).catch(e => console.warn('[Relay] Camera swap failed:', e.message));
 
-    // Stop old tracks and update stream reference
-    this.webcamStream.getTracks().forEach(t => t.stop());
-    this.webcamStream = newStream;
-    if (this.onWebcamStream) this.onWebcamStream(this.localUserId, newStream);
-    // People who join from now on receive the new stream, so announce its ID
-    // or their camera tile waits for the old one forever.
-    if (this.currentChannel) this.socket.emit('webcam-started', { code: this.currentChannel, streamId: newStream.id });
+      const oldStream = this.webcamStream;
+      const newTrack = newStream.getVideoTracks()[0];
 
-    // Re-hook ended
-    newTrack.onended = () => this.stopWebcam();
+      // Apply replacements serially so overlapping quality/device requests
+      // cannot race over sender identity or stop a newer stream.
+      const swaps = [];
+      for (const [, peer] of this.peers) {
+        const senders = peer.connection.getSenders();
+        const camSender = senders.find(s => s.track && s.track.kind === 'video' &&
+          oldStream.getVideoTracks().includes(s.track));
+        if (camSender) {
+          swaps.push(camSender.replaceTrack(newTrack).catch(e =>
+            console.warn('[Voice] replaceTrack (cam) failed:', e)
+          ));
+        }
+      }
+      await Promise.all(swaps);
+      if (this._relay) await this._relay.replace('webcam', newTrack).catch(e => console.warn('[Relay] Camera swap failed:', e.message));
 
-    localStorage.setItem('haven_cam_device', deviceId || '');
-    console.log(`[Voice] Camera switched: ${deviceId || 'default'}`);
+      // Left voice during the swap: nothing wants this camera any more.
+      if (!this.isWebcamActive) {
+        newStream.getTracks().forEach(t => t.stop());
+        return;
+      }
+
+      // Stop old tracks and update stream reference
+      oldStream.getTracks().forEach(t => t.stop());
+      this.webcamStream = newStream;
+      if (this.onWebcamStream) this.onWebcamStream(this.localUserId, newStream);
+      // People who join from now on receive the new stream, so announce its ID
+      // or their camera tile waits for the old one forever.
+      if (this.currentChannel) this.socket.emit('webcam-started', { code: this.currentChannel, streamId: newStream.id });
+
+      // Re-hook ended
+      newTrack.onended = () => this.stopWebcam();
+      console.log(`[Voice] Camera switched: ${deviceId || 'default'}`);
+    });
+
+    this._cameraSwitchQueue = apply.catch(err => {
+      if (this.webcamStream !== newStream) newStream.getTracks().forEach(t => t.stop());
+      console.error('[Voice] Failed to apply camera switch:', err);
+    });
+    return this._cameraSwitchQueue;
   }
 
   // ── Screen Share Quality Helpers ───────────────────────

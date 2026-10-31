@@ -1035,6 +1035,14 @@
   transition: transform 0.15s, box-shadow 0.15s;
   position: relative;
 }
+/* The promo pills do not shrink, so in a narrow window they pushed the Join
+   Voice button off the edge. Icon only first, then gone. */
+@media (max-width: 1500px) {
+  .desktop-app-text, .android-beta-text { display: none; }
+}
+@media (max-width: 1200px) {
+  .desktop-app-banner, .android-beta-banner { display: none !important; }
+}
 .android-beta-banner:hover {
   transform: scale(1.05);
   box-shadow: 0 2px 12px rgba(61, 220, 132, 0.4);

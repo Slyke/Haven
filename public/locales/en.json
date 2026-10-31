@@ -4529,7 +4529,8 @@
     "copied": "Copied",
     "uploading": "Uploading...",
     "removing_location": "Removing location data...",
-    "cancel_upload": "Cancel upload"
+    "cancel_upload": "Cancel upload",
+    "copy_failed": "Could not copy"
   },
   "reactions": {
     "search_placeholder": "Search emojis..."
