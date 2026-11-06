@@ -1724,6 +1724,7 @@ class VoiceManager {
         this.isListenerOnly = true;
       }
 
+      if (this.rawStream) this._watchMic(this.rawStream);
       // Opt out of Windows audio ducking (Desktop app only).
       // Must be called after getUserMedia so our audio session exists.
       if (window.havenDesktop?.audio?.optOutOfDucking) {
@@ -1782,21 +1783,7 @@ class VoiceManager {
       // Do not let Socket.IO buffer a stale voice-join if the connection
       // dropped while microphone and noise processing were being prepared.
       if (this.socket && this.socket.connected === false) {
-        this._disableRNNoise();
-        this._stopNoiseGate();
-        this._stopLocalTalkDetection();
-        if (this.rawStream) {
-          this.rawStream.getTracks().forEach(track => track.stop());
-          this.rawStream = null;
-        }
-        if (this.localStream) {
-          this.localStream.getTracks().forEach(track => track.stop());
-          this.localStream = null;
-        }
-        if (this.audioCtx) {
-          this.audioCtx.close().catch(() => { /* already closed */ });
-          this.audioCtx = null;
-        }
+        this._dropUnjoinedMic();
         return false;
       }
 
@@ -1827,10 +1814,32 @@ class VoiceManager {
       return true;
     } catch (err) {
       console.error('Voice join failed:', err);
+      // The mic may already be open; nothing else would ever close it (#5850).
+      if (!this.inVoice) this._dropUnjoinedMic();
       return false;
     } finally {
       this._joinInFlight = false;
       this._joiningChannelCode = null;
+    }
+  }
+
+  // A join that stopped before it finished lets go of the mic and the audio
+  // processing it set up.
+  _dropUnjoinedMic() {
+    this._disableRNNoise();
+    this._stopNoiseGate();
+    this._stopLocalTalkDetection();
+    if (this.rawStream) {
+      this.rawStream.getTracks().forEach(track => track.stop());
+      this.rawStream = null;
+    }
+    if (this.localStream) {
+      this.localStream.getTracks().forEach(track => track.stop());
+      this.localStream = null;
+    }
+    if (this.audioCtx) {
+      this.audioCtx.close().catch(() => { /* already closed */ });
+      this.audioCtx = null;
     }
   }
 
@@ -4019,8 +4028,8 @@ class VoiceManager {
    * chain, and replaces the audio track on every peer connection.
    * @param {string} deviceId - MediaDeviceInfo.deviceId (empty = system default)
    */
-  async switchInputDevice(deviceId) {
-    if (!this.inVoice) return;
+  async switchInputDevice(deviceId, remember = true) {
+    if (!this.inVoice) return false;
 
     const audioConstraints = {
       echoCancellation: true,
@@ -4034,7 +4043,13 @@ class VoiceManager {
       newRawStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: false });
     } catch (err) {
       console.error('[Voice] Failed to switch input device:', err);
-      return;
+      return false;
+    }
+    // The call ended while the new mic was opening: let it go again, or it
+    // stays open with nothing left to close it (#5850).
+    if (!this.inVoice || !this.audioCtx) {
+      newRawStream.getTracks().forEach(t => t.stop());
+      return false;
     }
 
     // Stop old raw tracks
@@ -4042,6 +4057,7 @@ class VoiceManager {
       this.rawStream.getTracks().forEach(t => t.stop());
     }
     this.rawStream = newRawStream;
+    this._watchMic(newRawStream);
 
     // Rebuild noise gate chain
     this._disableRNNoise();
@@ -4112,8 +4128,23 @@ class VoiceManager {
     }
 
     // Persist preference
-    localStorage.setItem('haven_input_device', deviceId || '');
+    if (remember) localStorage.setItem('haven_input_device', deviceId || '');
     console.log(`[Voice] Input device switched: ${deviceId || 'default'}`);
+    return true;
+  }
+
+  _watchMic(stream) {
+    stream.getAudioTracks().forEach(track => track.addEventListener('ended', () => this._reopenLostMic(stream)));
+  }
+
+  async _reopenLostMic(stream) {
+    if (!this.inVoice || this.rawStream !== stream) return;
+    console.warn('[Voice] microphone was lost, opening it again');
+    const saved = localStorage.getItem('haven_input_device') || '';
+    const settled = Date.now() - (this._micReopenedAt || 0) > 3000;
+    const reopened = settled && (await this.switchInputDevice(saved, false) || (saved && await this.switchInputDevice('', false)));
+    if (reopened) this._micReopenedAt = Date.now();
+    else navigator.mediaDevices.addEventListener('devicechange', () => this._reopenLostMic(stream), { once: true });
   }
 
   /**

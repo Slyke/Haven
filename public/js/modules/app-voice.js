@@ -100,6 +100,7 @@ _leaveVoice() {
   // the voice room before the broadcast fires, it may not reach us, and
   // the panel would stay stuck showing us as a participant (#5347).
   const leftCode = this.voice && this.voice.currentChannel;
+  this._cleanupFullscreenCallTiles?.();
   this.voice.leave();
   this._mutedByDeafen = false;
   this.notifications.playDirect('voice_leave');
@@ -299,6 +300,7 @@ _syncMuteDeafenButtons() {
     btn.title = t(isDeafened ? 'voice.undeafen' : 'voice.deafen');
     btn.classList.toggle('muted', isDeafened);
   });
+  this._syncFullscreenCallControls?.();
 },
 
 // Whether "Join Voice" makes sense right now: a channel is open, voice is
@@ -331,6 +333,7 @@ _applyVoiceRoomLimits() {
   set('screen-share-btn', streamsOff, 'voice.streams_disabled', 'voice.screen_share');
   set('voice-cam-btn', streamsOff, 'voice.streams_disabled', 'voice.panel.camera');
   set('voice-listen-together-btn', musicOff, 'voice.music_disabled', 'voice.panel.listen_together');
+  this._syncFullscreenCallControls?.();
 },
 
 _updateVoiceButtons(inVoice) {
@@ -410,6 +413,7 @@ _updateVoiceButtons(inVoice) {
       (this.voice.localStream && this.voice.localStream.getTracks().some(t => t.readyState === 'live'))
     ));
     if (!mediaStillLive) {
+      this._cleanupFullscreenCallTiles?.();
       const grid = document.getElementById('screen-share-grid');
       if (grid) {
         grid.querySelectorAll('video').forEach(v => { v.srcObject = null; });
@@ -431,6 +435,7 @@ _updateVoiceButtons(inVoice) {
       console.warn('[Voice] _updateVoiceButtons(false) skipped stream wipe (media still live)');
     }
   }
+  this._syncFullscreenCallControls?.();
 },
 
 _updateVoiceStatus(inVoice) {
@@ -506,8 +511,12 @@ async _populateAudioDevices() {
         tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       } catch { /* microphone refused: devices are listed without names */ }
     }
-    devices = await navigator.mediaDevices.enumerateDevices();
-    if (tempStream) tempStream.getTracks().forEach(t => t.stop());
+    try {
+      devices = await navigator.mediaDevices.enumerateDevices();
+    } finally {
+      // Only opened to learn the device names; closed even if listing fails.
+      if (tempStream) tempStream.getTracks().forEach(t => t.stop());
+    }
   } catch (err) {
     console.warn('[Haven] Could not enumerate audio devices:', err);
     return;

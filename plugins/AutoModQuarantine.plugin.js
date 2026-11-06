@@ -1221,6 +1221,9 @@ Respond ONLY in valid raw JSON matching: {"safe": boolean, "category": string, "
       const rawText = args[0];
       const origHtml = orig.apply(this, args);
       if (!self._settings.enabled) return origHtml;
+      // Text from an end-to-end encrypted DM stays between its two people, so
+      // its links are never sent to the server's AI or a cloud one.
+      if (args[1] && args[1].e2e) return origHtml;
 
       return self.transformMessageHtml(origHtml, rawText);
     });
@@ -1260,7 +1263,7 @@ Respond ONLY in valid raw JSON matching: {"safe": boolean, "category": string, "
         });
       } else if (verdict && verdict.status === 'blocked') {
         const blockedCard = `<div class="haven-automod-blocked-card" data-hq-url="${this._escapeHtml(url)}">${this._blockedCardHtml(url, verdict)}</div>`;
-        modified = modified.replace(linkPattern, blockedCard);
+        modified = modified.replace(linkPattern, () => blockedCard);
       } else {
         const quarantineCapsule = `
           <span class="haven-quarantine-capsule scanning" data-hq-url="${this._escapeHtml(url)}" data-hq-text="${this._escapeHtml(item.label)}">
@@ -1271,7 +1274,7 @@ Respond ONLY in valid raw JSON matching: {"safe": boolean, "category": string, "
             <span class="hq-status-pill">Scanning...</span>
           </span>
         `;
-        modified = modified.replace(linkPattern, quarantineCapsule);
+        modified = modified.replace(linkPattern, () => quarantineCapsule);
 
         this._enqueueScan(url, rawText);
       }

@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const { utcStamp, isString, isInt, sanitizeText, parseBorderTransform, toReplyContext, stripRoleMentions, releasableUploads } = require('./helpers');
 const { getActiveTokenizer, minQueryChars, buildMatchQuery } = require('../searchIndex');
 const selfDestruct = require('../selfDestruct');
+const { isUsableEmoji } = require('../builtinEmojis');
 const { applyTagsToMessage, applyTagsToFiles, fileTags, messageTags, setMessageTags, normalizeTagName, escapeLike, extractUploadPath, extractUploadPaths, effectiveLimits } = require('../uploadTags');
 const { votesFor, pieceVotesFor } = require('../forumVotes');
 const forumBlog = require('../forumBlog');
@@ -21,6 +22,7 @@ const storage = require('../storage');
 const { groupHistoryFloor } = require('../groupHistory');
 const { isSafeUploadRelPath } = storage;
 const createReadPositions = require('../db/readPositions');
+const { mentionsMeCondition } = require('../mentionFilter');
 
 // The length limit is on what people type. An encrypted DM reaches the
 // server as ciphertext: AES-GCM output in base64 inside a small JSON wrapper,
@@ -614,7 +616,7 @@ module.exports = function register(socket, ctx) {
     const token = data.token;
 
     // ── Parse filters out of the query text ──
-    const filters = { from: null, in: null, has: null, pinned: null, before: null, after: null, during: null, tag: null };
+    const filters = { from: null, in: null, has: null, pinned: null, before: null, after: null, during: null, tag: null, mentions: null };
     query = query.replace(/\bfrom:(\S+)/gi, (_, v) => { filters.from = v; return ''; });
     // tag: supports a quoted value so multi-word tags work (tags allow spaces);
     // the filter picker and clickable message tags append the quoted form.
@@ -627,6 +629,8 @@ module.exports = function register(socket, ctx) {
     query = query.replace(/\bbefore:(\S+)/gi, (_, v) => { filters.before = v; return ''; });
     query = query.replace(/\bafter:(\S+)/gi, (_, v) => { filters.after = v; return ''; });
     query = query.replace(/\bduring:(\S+)/gi, (_, v) => { filters.during = v; return ''; });
+    // mentions:me lists messages that @mention you or reply to you (the @ button).
+    query = query.replace(/\bmentions:me\b/gi, () => { filters.mentions = 'me'; return ''; });
     query = query.trim();
 
     // Only keep well-formed YYYY-MM-DD dates; drop anything else silently.
@@ -647,7 +651,7 @@ module.exports = function register(socket, ctx) {
 
     // Never dump the whole corpus: require free text or at least one filter.
     const anyFilter = filters.from || filters.has || filters.in || filters.pinned ||
-                      filters.before || filters.after || filters.during || filters.tag;
+                      filters.before || filters.after || filters.during || filters.tag || filters.mentions;
     if (!usesFts && !anyFilter) {
       return socket.emit('search-results', empty);
     }
@@ -717,6 +721,15 @@ module.exports = function register(socket, ctx) {
       if (!norm) return socket.emit('search-results', empty);
       conditions.push("m.id IN (SELECT at.message_id FROM attachment_tags at JOIN upload_tags ut ON ut.id = at.tag_id WHERE ut.name_norm LIKE ? ESCAPE '\\')");
       params.push(escapeLike(norm.norm) + '%');
+    }
+
+    // ── mentions:me filter (src/mentionFilter.js) ──
+    if (filters.mentions) {
+      const me = db.prepare('SELECT username FROM users WHERE id = ?').get(socket.user.id);
+      const cond = me && mentionsMeCondition(socket.user.id, me.username);
+      if (!cond) return socket.emit('search-results', empty);
+      conditions.push(cond.sql);
+      params.push(...cond.params);
     }
 
     // ── date filters (created_at). during: is the whole named day. ──
@@ -2643,16 +2656,8 @@ module.exports = function register(socket, ctx) {
       const reactMute = activeMuteNotice(socket.user.id);
       if (reactMute) return socket.emit('error-msg', reactMute);
 
-      const allowed = /^[\p{Emoji}\p{Emoji_Component}\uFE0F\u200D]+$/u;
-      const customEmojiPattern = /^:[a-zA-Z0-9_-]{1,30}:$/;
-      if (!allowed.test(data.emoji) && !customEmojiPattern.test(data.emoji)) return;
-      if (data.emoji.length > 32) return;
-
-      if (customEmojiPattern.test(data.emoji)) {
-        const emojiName = data.emoji.slice(1, -1).toLowerCase();
-        const exists = db.prepare('SELECT 1 FROM custom_emojis WHERE name = ?').get(emojiName);
-        if (!exists) return;
-      }
+      // A Unicode emoji, or :name: for one of Haven's own or the server's custom ones.
+      if (!isUsableEmoji(db, data.emoji)) return;
 
       // Look up the channel from the message itself, not socket.currentChannel.
       // Reactions can be triggered from the DM PiP while the user's main pane
@@ -2918,6 +2923,20 @@ module.exports = function register(socket, ctx) {
   });
 
   // ── Read positions ──────────────────────────────────────
+  // Tell every connected device of one account that channels were read, so
+  // each can drop its own notification for them. Looks at the sockets once
+  // however many channels there are. Other accounts never see it.
+  function emitChannelRead(userId, reads) {
+    if (!reads.length) return;
+    const devices = [];
+    for (const [, connected] of io.sockets.sockets) {
+      if (connected.user && connected.user.id === userId) devices.push(connected);
+    }
+    for (const connected of devices) {
+      for (const read of reads) connected.emit('channel-read', read);
+    }
+  }
+
   socket.on('mark-read', async (data) => {
     if (!data || typeof data !== 'object') return;
     const code = typeof data.code === 'string' ? data.code.trim() : '';
@@ -2925,7 +2944,10 @@ module.exports = function register(socket, ctx) {
     if (!isInt(data.messageId) || data.messageId <= 0) return;
 
     try {
-      await readPositions.markRead(socket.user.id, code, data.messageId);
+      const result = await readPositions.markRead(socket.user.id, code, data.messageId);
+      // Only a receipt that was actually stored (the account is a member)
+      // is worth telling the account's other devices about.
+      if (result?.changes) emitChannelRead(socket.user.id, [{ channelCode: code, messageId: data.messageId }]);
     } catch (err) {
       console.error('Mark read error:', err);
     }
@@ -2940,7 +2962,15 @@ module.exports = function register(socket, ctx) {
     try {
       // Mark up to the latest non-thread message. Thread replies have their
       // own panel and don't participate in channel-level read positions.
-      await readPositions.markChannelRead(socket.user.id, code);
+      const result = await readPositions.markChannelRead(socket.user.id, code);
+      if (result?.changes) {
+        const latest = await (db.async || db).prepare(`
+          SELECT MAX(m.id) AS messageId
+          FROM channels c JOIN messages m ON m.channel_id = c.id AND m.thread_id IS NULL
+          WHERE c.code = ?
+        `).get(code);
+        emitChannelRead(socket.user.id, [{ channelCode: code, messageId: latest?.messageId || null }]);
+      }
     } catch (err) {
       console.error('Mark read channel error:', err);
     }
@@ -2953,6 +2983,17 @@ module.exports = function register(socket, ctx) {
     const cb = typeof callback === 'function' ? callback : () => {};
     try {
       const channels = await readPositions.markAllRead(socket.user.id);
+      const driver = db.async || db;
+      const readChannels = await driver.prepare(`
+        SELECT c.code, MAX(m.id) AS messageId
+        FROM channels c
+        JOIN channel_members cm ON cm.channel_id = c.id AND cm.user_id = ?
+        LEFT JOIN messages m ON m.channel_id = c.id AND m.thread_id IS NULL
+        GROUP BY c.id, c.code
+      `).all(socket.user.id);
+      emitChannelRead(socket.user.id, readChannels
+        .filter(channel => channel.messageId)
+        .map(channel => ({ channelCode: channel.code, messageId: channel.messageId })));
       cb({ ok: true, channels });
     } catch (err) {
       console.error('Mark all read error:', err);

@@ -294,6 +294,7 @@
       "logout": "Logout",
       "invite": "Invite Users",
       "change_display_name": "Change display name",
+      "mentions": "Mentions and replies",
       "close_sidebar": "Close sidebar",
       "message_actions": "Message actions",
       "organize_channels": "Organize channels",
@@ -684,7 +685,9 @@
       "camera": "Camera",
       "soundboard": "Soundboard",
       "listen_together": "Listen Together",
-      "settings": "Voice Settings"
+      "settings": "Voice Settings",
+      "call_controls": "Call controls",
+      "call_settings": "Call settings"
     },
     "music_file_platform": "Audio file",
     "music_file_listen": "Play for everyone in voice",
@@ -3189,6 +3192,7 @@
         "title_label": "Title",
         "title_placeholder": "Pick your roles",
         "emoji": "Emoji people react with",
+        "emoji_pick": "Pick the emoji people react with",
         "pick_one": "Tick at least one role",
         "posted": "Role menu posted",
         "edit": "Edit role menu",
@@ -3710,7 +3714,7 @@
     "donors": {
       "title": "Thank You",
       "subtitle": "Haven is built with love and kept alive by the generosity of people like you. Every donation, big or small, means the world.",
-      "sponsors_title": "Sponsors",
+      "sponsors_title": "Monthly Supporters",
       "donors_title": "Donors",
       "note": "New donors will be added each release. If you've donated and don't see your name, it'll be in the next update!",
       "kofi_btn": "Support Haven on Ko-fi",
@@ -4555,6 +4559,7 @@
     "search_placeholder": "Search emojis..."
   },
   "emoji": {
+    "choose": "Choose an emoji",
     "search_placeholder": "Search emoji…",
     "no_results": "No emoji found",
     "section_emoji": "Emoji",
@@ -4584,6 +4589,7 @@
       "travel": "Travel",
       "objects": "Objects",
       "symbols": "Symbols",
+      "platforms": "Platforms",
       "flags": "Flags",
       "custom": "Custom"
     }
