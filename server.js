@@ -3096,7 +3096,7 @@ try {
 }
 
 if (postgresPreview) {
-  console.log('[db] PostgreSQL browser preview: signup, login and public-room browsing are enabled; unsupported actions and background integrations are disabled.');
+  console.log('[db] PostgreSQL browser preview: signup, login, text chat, direct messages and status are enabled; unsupported actions and background integrations are disabled.');
   await _refreshIpBanCache();
   app.set('io', io);
   setFcmAdminEnabled(false);

@@ -11,6 +11,7 @@ const { badgesForProfile } = require('../badges');
 const { themePreferenceAllowed } = require('../themeMetadata');
 const { MEDIA_GROUP_LAYOUTS } = require('../mediaGroup');
 const createEncryptionKeyReads = require('../db/encryptionKeys');
+const { parseStatus, updateStatus } = require('./profileStatus');
 
 const PUSH_SCOPES = ['all', 'mentions'];
 
@@ -262,18 +263,16 @@ module.exports = function register(socket, ctx) {
 
   // ── Status ──────────────────────────────────────────────
   socket.on('set-status', (data) => {
-    if (!data || typeof data !== 'object') return;
-    const validStatuses = ['online', 'away', 'dnd', 'invisible'];
-    const status = validStatuses.includes(data.status) ? data.status : 'online';
-    const statusText = isString(data.statusText, 0, 128) ? data.statusText.trim() : '';
+    const next = parseStatus(data);
+    if (!next) return;
+    const { status, statusText } = next;
 
     // A status line is displayed next to the name in every member list, so a
     // link parked there is as good as posting it in every channel at once.
     if (statusText && enforceAutomod(statusText, { surface: 'profile' })) return;
 
     try {
-      db.prepare('UPDATE users SET status = ?, status_text = ? WHERE id = ?')
-        .run(status, statusText, socket.user.id);
+      updateStatus(db, socket.user.id, next);
     } catch (err) {
       console.error('Set status error:', err);
       return;
