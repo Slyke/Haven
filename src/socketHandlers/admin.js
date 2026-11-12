@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const path = require('node:path');
 const { utcStamp, isInt, isValidUploadPath, VALID_ROLE_PERMS, normalizeWordGroups, validEscalation } = require('./helpers');
 const { NEVER_SENT_SETTINGS, ADMIN_ONLY_SETTINGS, createSettingEffects } = require('./settingEffects');
+const { normalizeBlockedExtensions } = require('../uploadBlocklist');
 const {
   BUILTIN_THEMES,
   compatibleThemeFiles,
@@ -131,6 +132,8 @@ module.exports = function register(socket, ctx) {
       'giphy_api_key', 'klipy_api_key', 'tenor_api_key', 'preferred_gif_search', 'server_name', 'server_title', 'server_icon', 'server_banner',
       'tunnel_enabled', 'tunnel_provider', 'server_code', 'max_upload_mb', 'max_attachments', 'max_poll_options', 'channel_templates',
       'max_tags_per_attachment', 'max_tag_len', // (#tagging phase 4) upload-tag limits
+      'blocked_upload_extensions', // (#5833) file types members cannot upload
+      'automod_ai_enabled', // experimental AutoMod Quarantine AI link checks
       'max_sound_kb', 'max_avatar_mb', 'max_emoji_kb', 'max_sticker_kb', 'setup_wizard_complete', 'update_banner_admin_only', 'update_channel_early', 'hide_disabled_channel_badges',
       'category_layout', 'category_short_names', // (#5756) category tabs and short names
       'media_group_layout', // (#5799) pictures sent together: 'grid' or 'stacked'
@@ -210,6 +213,10 @@ module.exports = function register(socket, ctx) {
     if (key === 'automod_words') {
       value = normalizeWordGroups(value);
       if (value === null) return;
+    }
+    if (key === 'blocked_upload_extensions') {
+      value = normalizeBlockedExtensions(value);
+      if (value === null) return socket.emit('error-msg', 'Blocked file types: list types like exe, bat, dll (letters and digits, up to 100).');
     }
     // Thresholds must be coherent or the escalation ladder misbehaves in
     // ways that are very hard to debug from the outside: a ban threshold
@@ -429,6 +436,9 @@ module.exports = function register(socket, ctx) {
       if (!['true', 'false'].includes(value)) return;
     }
     if (key === 'invites_bypass_registration_token') {
+      if (!['true', 'false'].includes(value)) return;
+    }
+    if (key === 'automod_ai_enabled') {
       if (!['true', 'false'].includes(value)) return;
     }
     if (key === 'guests_enabled' || key === 'guests_allow_voice') {

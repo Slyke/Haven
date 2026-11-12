@@ -41,6 +41,13 @@ _openChannelCtxMenu(code, btnEl) {
   });
   const cfnCtxBtn = menu.querySelector('[data-action="channel-functions"]');
   if (cfnCtxBtn) cfnCtxBtn.style.display = canManageSettings ? '' : 'none';
+  const typeCtxBtn = menu.querySelector('[data-action="channel-type"]');
+  if (typeCtxBtn) {
+    typeCtxBtn.style.display = canManageSettings ? '' : 'none';
+    const current = this._channelTypeOf?.(ch);
+    const cur = typeCtxBtn.querySelector('.ct-ctx-current');
+    if (cur) cur.textContent = current ? `${current.icon} ${current.name}` : '';
+  }
   if (!canManageChannels && canManageSettings) {
     const adminSeps = menu.querySelectorAll('hr.channel-ctx-sep.admin-only');
     if (adminSeps[0]) adminSeps[0].style.display = '';
@@ -139,6 +146,13 @@ _openChannelCtxMenu(code, btnEl) {
     const sourceOk = !ch.parent_channel_id || canManageSubs;
     const hasTarget = this._reparentTargets(ch).length > 0;
     moveToBtn.style.display = (sourceOk && hasTarget && !ch.is_dm && !hasChildren) ? '' : 'none';
+  }
+  // "Add all members": who may tick it when making a channel, and not for a
+  // private channel, which stays invite-only.
+  const addAllBtn = menu.querySelector('[data-action="add-all-members"]');
+  if (addAllBtn) {
+    const canAddAll = !!this.user?.isAdmin || this._hasGlobalPerm?.('invite_users') || this._hasGlobalPerm?.('manage_server');
+    addAllBtn.style.display = (canAddAll && ch && !ch.is_dm && !ch.is_private) ? '' : 'none';
   }
   // Show "Promote to Channel" only for sub-channels
   const promoteBtn = menu.querySelector('[data-action="promote-channel"]');
@@ -341,6 +355,7 @@ _applyReactionLock() {
 
 _updateChannelFunctionsPanel(ch) {
   if (!ch) return;
+  this._updateChannelTypeNote?.(ch);
   // Voice & text toggles
   const voiceOff = ch.voice_enabled === 0;
   const textOff = ch.text_enabled === 0;
@@ -538,7 +553,7 @@ _initDmContextMenu() {
     const ok = await this._showConfirmModal('⚠️ ' + t('channels.dm_delete_confirm'), '', { danger: true, confirmLabel: t('msg_toolbar.delete') });
     if (!ok) return;
     const attachments = await this._collectDmAttachments(code);
-    this.socket.emit('delete-dm', { code, attachments });
+    this.socket.emit('delete-dm', { code, attachments, confirmed: true });
   });
 
   // Close on outside click

@@ -115,12 +115,25 @@ function enabled() { return settings().automod_enabled === 'true'; }
 // Build the plain-object policy the shared rules module consumes. This is the
 // same shape sent to clients over the socket, so both sides evaluate against
 // byte-identical input.
+// Admins, and people at or above "Skip filtering at role level", are never
+// filtered. The browser checks links in encrypted DMs itself, so it is told
+// who in a DM this covers (socketHandlers/index.js).
+function linkExempt({ isAdmin, effectiveLevel }) {
+  if (isAdmin) return true;
+  const exemptLevel = parseInt(settings().automod_link_exempt_level, 10);
+  return Number.isFinite(exemptLevel) && exemptLevel >= 0 && Number.isFinite(effectiveLevel) && effectiveLevel >= exemptLevel;
+}
+
 function policy() {
-  const s = settings();
+  settings();
+  return policyFrom(_cache);
+}
+
+function policyFrom({ settings: s, allow, deny }) {
   return {
     mode: s.automod_link_mode,
-    allow: [..._cache.allow].map(([domain, includeSubdomains]) => ({ domain, includeSubdomains })),
-    deny:  [..._cache.deny].map(([domain, includeSubdomains]) => ({ domain, includeSubdomains })),
+    allow: [...allow].map(([domain, includeSubdomains]) => ({ domain, includeSubdomains })),
+    deny:  [...deny].map(([domain, includeSubdomains]) => ({ domain, includeSubdomains })),
     blockIpUrls: s.automod_block_ip_urls === 'true',
     blockPunycode: s.automod_block_punycode === 'true',
     blockObfuscated: s.automod_block_obfuscated === 'true'
@@ -151,10 +164,24 @@ const GIF_HOSTS = ['giphy.com', 'tenor.com', 'klipy.com'];
 //
 // Returns { ok: true } or { ok: false, rule, message, host, excerpt }.
 function checkText(text, ctx = {}) {
-  if (!enabled()) return { ok: true };
-  if (typeof text !== 'string' || !text.trim()) return { ok: true };
+  settings();
+  return checkTextAgainst(text, ctx, _cache);
+}
 
-  const s = settings();
+// The async runtime loads the same policy through its own connection.
+function checkTextWithSettings(text, ctx, saved, domains) {
+  const s = { ...DEFAULTS, ...saved };
+  const allow = new Map(), deny = new Map();
+  for (const row of domains) {
+    (row.mode === 'deny' ? deny : allow).set(row.domain, row.include_subdomains !== 0);
+  }
+  return checkTextAgainst(text, ctx, { settings: s, words: compileWordGroups(s.automod_words), allow, deny });
+}
+
+function checkTextAgainst(text, ctx, state) {
+  const s = state.settings;
+  if (s.automod_enabled !== 'true') return { ok: true };
+  if (typeof text !== 'string' || !text.trim()) return { ok: true };
 
   if (ctx.surface === 'edit' && s.automod_scan_edits !== 'true') return { ok: true };
   if (ctx.surface === 'dm' && s.automod_scan_dms !== 'true') return { ok: true };
@@ -173,7 +200,7 @@ function checkText(text, ctx = {}) {
   // Before the link rules, and independent of the link policy being on. DMs
   // are ciphertext here, so they cannot be checked.
   if (ctx.surface !== 'dm') {
-    for (const g of _cache.words || []) {
+    for (const g of state.words || []) {
       const m = g.re.exec(text);
       if (m) {
         return {
@@ -222,7 +249,7 @@ function checkText(text, ctx = {}) {
 
   // Domain policy itself is evaluated by the shared rules module, so the
   // server and the browser reach identical verdicts on identical input.
-  const hit = rules.checkText(text, policy(), linkOpts);
+  const hit = rules.checkText(text, policyFrom(state), linkOpts);
   if (hit) {
     return {
       ok: false,
@@ -266,9 +293,8 @@ function countsAsStrike(verdict, createdAt, now = Date.now()) {
 // ctx: { isAdmin, createdAt, effectiveLevel: () => number }. The level is a
 // function so the role lookup only runs for an account that is still young.
 // An account with no creation date (older than the column) counts as old.
-function newAccountWaitMinutes(ctx = {}) {
-  if (!enabled()) return 0;
-  const s = settings();
+function newAccountWaitMinutes(ctx = {}, s = settings()) {
+  if (s.automod_enabled !== 'true') return 0;
   const minutes = parseInt(s.automod_new_account_post_minutes, 10);
   if (!Number.isFinite(minutes) || minutes <= 0) return 0;
   if (ctx.isAdmin) return 0;
@@ -374,6 +400,7 @@ module.exports = {
   invalidate,
   enabled,
   checkText,
+  checkTextWithSettings,
   checkHost,
   countsAsStrike,
   newAccountWaitMinutes,
@@ -384,5 +411,6 @@ module.exports = {
   recordInfraction,
   escalationConfig,
   policy,
+  linkExempt,
   DEFAULTS
 };

@@ -1235,7 +1235,6 @@ html.reduce-motion .forum-unread-dot { animation: none; }
 .rg-roles, .rm-roles { max-height: 40vh; overflow: auto; border: 1px solid var(--border); border-radius: 0.5rem; padding: 4px 8px; margin-top: 8px; }
 .rm-row { display: flex; align-items: center; gap: 8px; }
 .rm-row .toggle-row { flex: 1; }
-.rm-row .rm-emoji { width: 3.6rem !important; text-align: center; }
 .role-menu-widget { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 2px; }
 /* "Pick one" / "Pick up to 2" on a menu with a pick limit (#5800). */
 .role-menu-limit { flex-basis: 100%; font-size: 0.75rem; color: var(--text-muted); }
@@ -1349,6 +1348,28 @@ html.reduce-motion .forum-unread-dot { animation: none; }
   justify-content: center;
   gap: 6px;
 }
+/* The role's name opens its full editor (level, color, icon). */
+.perm-matrix-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.perm-matrix-edit:hover,
+.perm-matrix-edit:focus-visible { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.perm-matrix-edit-icon { opacity: 0.55; font-weight: 400; }
+.perm-matrix-edit:hover .perm-matrix-edit-icon { opacity: 1; }
+/* A click anywhere in the cell ticks its box (app-perm-matrix.js). */
+.perm-matrix-table tbody td:has(input[type="checkbox"]:not(:disabled)) { cursor: pointer; }
+.perm-matrix-table tbody td:has(input[type="checkbox"]:not(:disabled)):hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.perm-matrix-table tbody td input[type="checkbox"] { cursor: pointer; }
 .perm-matrix-swatch {
   width: 8px;
   height: 8px;

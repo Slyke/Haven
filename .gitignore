@@ -44,3 +44,4 @@ docker-compose.override.yml
 dist/
 backups/
 checklist-*.md
+config/

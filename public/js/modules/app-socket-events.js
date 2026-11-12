@@ -8,6 +8,17 @@ export default {
 _listenFeatureEvents() {
   this._listenForumVotes?.();
   this._listenForumBlog?.();
+  // ── Read receipts across this account's devices ─────
+  // Another connected device (or this same tab, harmlessly) marked a
+  // channel read: drop any notification still showing for it here too, and
+  // clear its unread count and the badges built from it.
+  this.socket.on('channel-read', (data) => {
+    if (!data?.channelCode) return;
+    this._dismissChannelNotifications(data.channelCode);
+    this._applyChannelRead(data.channelCode, data.messageId);
+    this._mentionsSeenInChannel?.(data.channelCode, data.messageId);
+  });
+
   // ── Reactions ──────────────────────────────────────
   this.socket.on('reactions-updated', (data) => {
     if (data.channelCode === this.currentChannel || data.channelCode === this._activeDMPip) {
@@ -387,6 +398,7 @@ _listenMessageChanges() {
     document.getElementById('current-user').textContent = data.user.displayName || data.user.username;
     const loginEl = document.getElementById('login-name');
     if (loginEl) loginEl.textContent = `@${data.user.username}`;
+    this._renderUserBarAvatar();
     this._showToast(t('toasts.display_name_changed', { name: data.user.displayName || data.user.username }), 'success');
     // Refresh admin UI in case admin status changed
     this.user.permissions = data.user.permissions || this.user.permissions || [];
@@ -432,7 +444,8 @@ _listenMessageChanges() {
       if (!msgEls.length) return;
       // E2E: decrypt once if needed (same content for both copies)
       let displayContent = data.content;
-      if (HavenE2E.isEncrypted(data.content) || this._isGroupEnvelope?.(data.content) || this._isGroupDm?.(data.channelCode)) {
+      const wasE2E = HavenE2E.isEncrypted(data.content) || !!this._isGroupEnvelope?.(data.content) || !!this._isGroupDm?.(data.channelCode);
+      if (wasE2E) {
         const partner = this._getE2EPartnerFor(data.channelCode);
         if (partner) {
           try {
@@ -450,7 +463,7 @@ _listenMessageChanges() {
       msgEls.forEach((msgEl) => {
         const contentEl = msgEl.querySelector('.message-content, .thread-msg-content');
         if (!contentEl) return;
-        contentEl.innerHTML = this._formatContent(displayContent);
+        contentEl.innerHTML = this._formatContent(displayContent, { e2e: wasE2E });
         msgEl.dataset.rawContent = displayContent;
         let editedTag = msgEl.querySelector('.edited-tag');
         if (!editedTag) {

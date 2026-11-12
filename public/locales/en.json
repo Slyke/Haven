@@ -294,6 +294,7 @@
       "logout": "Logout",
       "invite": "Invite Users",
       "change_display_name": "Change display name",
+      "mentions": "Mentions and replies",
       "close_sidebar": "Close sidebar",
       "message_actions": "Message actions",
       "organize_channels": "Organize channels",
@@ -341,6 +342,7 @@
       "spoiler_on": "Spoiler on. Click to send normally",
       "hide_image": "Hide Image",
       "image_hidden": "Image hidden",
+      "video_hidden": "Video hidden",
       "click_to_show": "click to show",
       "only_visible_to_you": "Only visible to you",
       "real_account": "real account",
@@ -361,12 +363,20 @@
       "embed_medium": "Medium",
       "embed_small": "Small",
       "embed_size_hint": "Embed size (use Settings ▸ Link Previews to turn off)",
+      "embed_size": "Preview size",
+      "embed_size_note": "Changes every preview. Settings > Link Previews can turn them off.",
+      "embed_theater": "Theater mode (as wide as the chat)",
+      "embed_theater_on": "Leave theater mode",
+      "embed_fullscreen": "Fullscreen",
+      "embed_mute": "Mute",
+      "embed_unmute": "Unmute",
       "embed_volume": "Volume",
       "keep_playing": "Keep playing when scrolled away",
       "keep_playing_on": "Keeps playing when scrolled away (click to stop that)",
       "loop": "Loop",
       "loop_on": "Looping (click to stop)",
       "collapse": "Collapse",
+      "expand": "Expand",
       "silent_hint": "Sent silently: nobody got a sound, pop-up or push for it"
     },
     "input_bar": {
@@ -675,8 +685,17 @@
       "camera": "Camera",
       "soundboard": "Soundboard",
       "listen_together": "Listen Together",
-      "settings": "Voice Settings"
-    }
+      "settings": "Voice Settings",
+      "call_controls": "Call controls",
+      "call_settings": "Call settings"
+    },
+    "music_file_platform": "Audio file",
+    "music_file_listen": "Play for everyone in voice",
+    "music_file_join_voice": "Join a voice channel to play this for everyone there",
+    "music_file_failed": "This audio file could not be played",
+    "music_yt_gone": "YouTube says this video is gone",
+    "music_yt_blocked": "YouTube will not play this video here (the uploader turned off embedding, or it is blocked in this country)",
+    "music_yt_failed": "YouTube could not play this video"
   },
   "calls": {
     "incoming": "Incoming call",
@@ -793,6 +812,10 @@
     "no_valid_parents": "No valid parent channels available",
     "confirm_promote": "Promote \"{{name}}\" to a top-level channel?",
     "confirm_move": "Move \"{{name}}\" under \"{{parent}}\"?",
+    "add_all_confirm": "Add everyone on the server to #{{name}}? They will see it in their channel list.",
+    "add_all_done": "Added {{count}} members",
+    "add_all_none": "Everyone is already in this channel",
+    "add_all_failed": "Could not add everyone",
     "organize_channels": "Organize Channels",
     "organize_sub_channels": "Organize Sub-channels",
     "organize_desc": "Reorder channels and assign category tags",
@@ -1079,6 +1102,7 @@
     "uploads_disabled": "Media uploads are disabled in this channel",
     "soundboard_disabled": "The soundboard is turned off for this channel",
     "file_too_large": "File too large (max {{maxMb}} MB)",
+    "file_type_blocked": ".{{ext}} files can't be uploaded on this server",
     "image_too_large": "Image too large (max {{maxMb}} MB)",
     "max_images": "Max 5 images at once",
     "max_files": "Max 5 files at once",
@@ -1444,7 +1468,9 @@
     "frame_rate": "Frame Rate",
     "bitrate": "Bitrate",
     "bitrate_unlimited": "Unlimited",
-    "camera_fallback": "Camera {{n}}"
+    "camera_fallback": "Camera {{n}}",
+    "camera_quality": "Camera Quality",
+    "camera_quality_hint": "Higher quality looks sharper but uses more bandwidth, for you and everyone watching. Your camera may top out lower."
   },
   "notifications_runtime": {
     "title": "{{sender}} in {{channel}}",
@@ -1603,7 +1629,27 @@
       "debug": "Debug",
       "backup": "Backup",
       "template": "Server Template",
-      "audit_log": "Audit Log"
+      "audit_log": "Audit Log",
+      "whats_new": "What's New",
+      "channel_types": "Channel Types"
+    },
+    "pages": {
+      "look": "Appearance",
+      "chat": "Chat & media",
+      "alerts": "Notifications",
+      "profile": "Profile & activity",
+      "security": "Account & security",
+      "language": "Language",
+      "access": "Accessibility",
+      "advanced": "Plugins & advanced",
+      "server": "Server",
+      "people": "People & roles",
+      "safety": "Safety",
+      "content": "Content",
+      "network": "Network & scale",
+      "tools": "Bots & data",
+      "more": "More",
+      "more_info": "More info"
     },
     "localization_section": {
       "title": "Localization"
@@ -1725,6 +1771,12 @@
         "underline_links": "Underline links",
         "large_targets": "Larger click targets",
         "large_targets_hint": "Bigger buttons and taller rows in the sidebars, the message box and the message actions."
+      },
+      "emoji": {
+        "title": "Emoji",
+        "system": "Your device's emoji",
+        "twemoji": "Twemoji",
+        "hint": "Twemoji draws emoji the same on every device, from a font Haven serves itself."
       }
     },
     "reaction_size": {
@@ -1781,6 +1833,8 @@
         "full": "Full",
         "full_hint": "Full: large inline images like Discord"
       },
+      "hide_media": "Hide pictures and videos",
+      "hide_media_hint": "Pictures, GIFs and videos in chat show as a small tag you click to see them, and link cards start folded. Handy around other people. Only changes what you see, on this device.",
       "media_layout": {
         "title": "Pictures Sent Together",
         "default": "Server default",
@@ -1820,8 +1874,8 @@
       "small_hint": "Small: compact card with small media",
       "medium": "Medium",
       "medium_hint": "Medium: balanced card with medium media",
-      "full": "Full",
-      "full_hint": "Full: large media, author, and post stats",
+      "full": "Large",
+      "full_hint": "Large: big media, author, and post stats",
       "pause_offscreen": "Pause videos and audio scrolled out of view",
       "pause_offscreen_hint": "A video, sound file or YouTube card in chat stops when you scroll past it."
     },
@@ -2174,6 +2228,10 @@
       "update_hint": "Check for new Haven releases and apply them in place. The server will create a pre-update backup automatically and restart itself.",
       "update_check_btn": "Check for Updates",
       "update_run_btn": "Update Now",
+      "shutdown_btn": "Shut Down Server",
+      "shutdown_hint": "Stops Haven cleanly, the same as Ctrl+C. Start it again the way you usually do. If Docker or a service manager restarts Haven on its own, this restarts it instead.",
+      "shutdown_confirm": "Shut down the server now? Everyone is disconnected until it is started again.",
+      "shutdown_sent": "The server is shutting down.",
       "update_checking": "Checking…",
       "update_run_on_host": "Run on host:",
       "update_copy_command": "Copy command",
@@ -2274,6 +2332,9 @@
       "automod_log_channel_placeholder": "channel code (optional)",
       "automod_activity_group": "Recent activity",
       "automod_refresh": "Refresh",
+      "automod_ai_group": "AI link checks (experimental)",
+      "automod_ai_enabled": "Let the AutoMod Quarantine plugin use this server",
+      "automod_ai_hint": "Experimental. Off by default. Turns on the server side of the AutoMod Quarantine plugin: checking links with an AI model running on this server (set up with scripts/setup-automod-ai.sh), and passing moderators' requests on to cloud AI services that refuse browsers. Only the link is ever sent to an AI, never the message. Members still choose whether to turn the plugin on in Plugins & Themes.",
       "bulk_preview_failed": "Preview failed",
       "mention_everyone_desc": "Notify everyone in the channel",
       "mention_here_desc": "Notify online members",
@@ -2749,6 +2810,9 @@
       "max_avatar_hint": "Largest profile picture, border or persona picture someone can upload (1 to 10 MB, default 2). Animated GIFs are often over 2 MB, but every picture is loaded next to every message its owner sends, so keep this as low as you can.",
       "max_emoji_hint": "Max custom emoji upload size (64-1024 KB, default 256)",
       "max_poll_hint": "Maximum answer choices per poll (2-25, default 10)",
+      "blocked_upload_types": "Blocked file types",
+      "blocked_upload_types_hint": "Files of these types can't be uploaded, by anyone. Separate them with commas. Common risky ones: exe, msi, bat, cmd, com, scr, ps1, vbs, dll, jar. Leave empty to allow every type.",
+      "blocked_upload_types_placeholder": "exe, bat, dll",
       "max_message_chars_hint": "Maximum characters per message, post, or DM (200-100000, default 2000)",
       "max_invite_uses": "Max invite link uses",
       "max_invite_uses_hint": "The maximum number of uses an invite link can be set to. Admin and manage-server permission ignore this limit. (0 = unlimited)",
@@ -2843,7 +2907,7 @@
       "roles_hint": "Roles decide who can do what. Open Permissions to set what each role can do, or to give someone a role. A role's level is its rank: people can only act on members ranked below them.",
       "perm_matrix": {
         "title": "Permissions",
-        "lead_roles": "Set what each role can do. Everyone who holds a role gets what is ticked in its column. Level, color and icon are under More options.",
+        "lead_roles": "Set what each role can do. Everyone who holds a role gets what is ticked in its column. Click a role's name to change its name, level, color or icon.",
         "lead_users": "Give someone a role with the buttons at the top. The boxes show what this person can do. Changing one makes an exception for them alone: it wins over their roles and does not change the role.",
         "level": "Lv. {{level}}",
         "level_hint": "The role's rank. People can only act on members ranked below them, and Auto-mod skips anyone at or above its exempt level.",
@@ -2873,6 +2937,7 @@
         "remove_role_confirm": "Remove {{name}}? Anyone who had it loses those powers.",
         "keep_one": "Keep at least one role besides Admin.",
         "classic": "More options (levels, colors, icons)",
+        "edit_role": "Change this role's name, level, color or icon. Level is its rank: people can only act on members ranked below them.",
         "search_users": "Search members…",
         "no_users": "No members match.",
         "pick_user": "Pick a member.",
@@ -3127,6 +3192,7 @@
         "title_label": "Title",
         "title_placeholder": "Pick your roles",
         "emoji": "Emoji people react with",
+        "emoji_pick": "Pick the emoji people react with",
         "pick_one": "Tick at least one role",
         "posted": "Role menu posted",
         "edit": "Edit role menu",
@@ -3144,7 +3210,17 @@
       "blur": "Blur NSFW topics and messages until clicked",
       "blur_hint": "Topics and messages marked 🔞 sit behind a blur, like a spoiler. Turn this off to see them plainly."
     },
-    "search_placeholder": "Search settings (Ctrl+F)"
+    "search_placeholder": "Search settings (Ctrl+F)",
+    "whats_new": {
+      "title": "What's New",
+      "show_label": "Show what's new after",
+      "all": "Every update",
+      "minor": "New features",
+      "major": "Big updates only",
+      "off": "Never",
+      "hint": "A version number has three parts: a big update changes the first, new features the second, and fixes the third. When an underlined part changes, you get a popup with the release notes. Saved on this device.",
+      "show_now": "See what's new in this version"
+    }
   },
   "modals": {
     "timezone": {
@@ -3166,6 +3242,7 @@
       "back": "← Back",
       "loading": "Loading...",
       "confirm": "Confirm",
+      "remove": "Remove",
       "warning": "Warning",
       "dismiss": "Dismiss",
       "ok": "OK",
@@ -3486,7 +3563,9 @@
       "not_here": "Send later is not available in direct messages",
       "scheduled": "Scheduled for {{when}}",
       "updated": "Updated, sending at {{when}}",
-      "sent": "Your scheduled message went out in #{{channel}}"
+      "sent": "Your scheduled message went out in #{{channel}}",
+      "attach": "📎 Attach files",
+      "remove_file": "Remove"
     },
     "self_destruct": {
       "title": "Self-destructing message",
@@ -3635,7 +3714,7 @@
     "donors": {
       "title": "Thank You",
       "subtitle": "Haven is built with love and kept alive by the generosity of people like you. Every donation, big or small, means the world.",
-      "sponsors_title": "Sponsors",
+      "sponsors_title": "Monthly Supporters",
       "donors_title": "Donors",
       "note": "New donors will be added each release. If you've donated and don't see your name, it'll be in the next update!",
       "kofi_btn": "Support Haven on Ko-fi",
@@ -3961,6 +4040,7 @@
         "channel_member_remove": "removed from a channel:",
         "channel_role_gate": "changed who can see channel",
         "channel_setting_update": "changed a setting of channel",
+        "channel_add_all_members": "added everyone to channel",
         "cleanup_run": "ran the cleanup",
         "discord_import": "imported from Discord",
         "dm_delete": "deleted the conversation of",
@@ -4026,7 +4106,8 @@
         "webhook_delete": "deleted bot",
         "webhook_update": "changed bot",
         "whitelist_add": "added to the whitelist:",
-        "whitelist_remove": "removed from the whitelist:"
+        "whitelist_remove": "removed from the whitelist:",
+        "server_shutdown": "shut the server down"
       },
       "exporting": "Exporting...",
       "on": "on",
@@ -4128,6 +4209,7 @@
       "mute": "Mute Channel",
       "unmute": "Unmute Channel",
       "copy_link": "Copy Channel Link",
+      "add_all_members": "Add all members",
       "join_voice": "Join Voice",
       "disconnect_voice": "Disconnect Voice",
       "leave": "Leave Channel",
@@ -4144,7 +4226,8 @@
       "mark_read": "Mark as Read",
       "mark_all_read": "Mark everything as read",
       "mark_all_read_done": "Everything is marked as read",
-      "mark_all_read_failed": "Could not mark everything as read"
+      "mark_all_read_failed": "Could not mark everything as read",
+      "type": "Channel Type"
     },
     "dm": {
       "mute": "Mute DM",
@@ -4231,6 +4314,63 @@
     "forum_blog_pics_only_hint": "No general Comments section under blog posts: people comment on each picture instead",
     "nsfw": "NSFW",
     "nsfw_hint": "Mark this channel NSFW. Members can hide NSFW channels from their sidebar in Settings"
+  },
+  "channel_types": {
+    "title": "Channel Types",
+    "hint": "A channel type is a set of Channel Functions with its own icon. Right-click a channel and pick Channel Type: it gets those functions, and the sidebar shows the type's icon instead of separate ones. Editing a type updates every channel that has it.",
+    "new_btn": "New channel type",
+    "empty": "No channel types yet. Make one to give channels a set of functions and a single icon in the sidebar.",
+    "used_by_none": "Not used yet",
+    "used_by_one": "Used by 1 channel",
+    "used_by": "Used by {{count}} channels",
+    "edit": "Edit",
+    "delete": "Delete",
+    "delete_confirm_title": "Delete \"{{name}}\"?",
+    "delete_confirm_body": "Its channels keep their functions and show them as separate icons again.",
+    "editor_new_title": "New channel type",
+    "editor_edit_title": "Edit channel type",
+    "preview_label": "In the sidebar",
+    "preview_channel": "channel-name",
+    "name_label": "Name",
+    "name_placeholder": "e.g. Hangout",
+    "icon_label": "Sidebar icon",
+    "icon_hint": "Pick one, or type any emoji or a short word.",
+    "functions_label": "What can people do in these channels?",
+    "group_chat": "Chat",
+    "group_voice": "Voice",
+    "fn": {
+      "text": "Text chat",
+      "text_hint": "Send messages",
+      "media": "Pictures and files",
+      "media_hint": "Upload images, videos and files",
+      "reactions": "Reactions",
+      "reactions_hint": "React to messages with emoji",
+      "read_only": "Read only",
+      "read_only_hint": "Only admins and people allowed can post",
+      "voice": "Voice chat",
+      "voice_hint": "Talk in the channel",
+      "streams": "Screen share and camera",
+      "streams_hint": "Share a screen or turn on a camera",
+      "music": "Music",
+      "music_hint": "Listen Together",
+      "soundboard": "Soundboard",
+      "soundboard_hint": "Play sounds in voice"
+    },
+    "needs_voice": "Needs voice chat",
+    "summary_none": "Nothing switched on",
+    "save_note_one": "Saving also updates the 1 channel of this type.",
+    "save_note": "Saving also updates the {{count}} channels of this type.",
+    "save": "Save",
+    "saved": "Channel type saved",
+    "picker_title": "Channel type for #{{name}}",
+    "picker_none": "None",
+    "picker_none_hint": "Set its functions one by one in Channel Functions",
+    "picker_manage": "Manage types…",
+    "picker_apply": "Apply",
+    "picker_empty": "There are no channel types yet.",
+    "applied": "#{{name}} is now {{type}}",
+    "cleared": "#{{name}} no longer has a type",
+    "cfn_note": "This channel is {{icon}} {{name}}. Changing a function below takes it out of that type."
   },
   "confirm": {
     "delete_channel": "Delete this channel?\nAll messages will be permanently lost.",
@@ -4412,12 +4552,14 @@
     "copied": "Copied",
     "uploading": "Uploading...",
     "removing_location": "Removing location data...",
-    "cancel_upload": "Cancel upload"
+    "cancel_upload": "Cancel upload",
+    "copy_failed": "Could not copy"
   },
   "reactions": {
     "search_placeholder": "Search emojis..."
   },
   "emoji": {
+    "choose": "Choose an emoji",
     "search_placeholder": "Search emoji…",
     "no_results": "No emoji found",
     "section_emoji": "Emoji",
@@ -4447,6 +4589,7 @@
       "travel": "Travel",
       "objects": "Objects",
       "symbols": "Symbols",
+      "platforms": "Platforms",
       "flags": "Flags",
       "custom": "Custom"
     }
@@ -4919,5 +5062,10 @@
       "none": "There are no hand-given badges yet. Make one in Settings, Admin, Badges.",
       "switched_off": "switched off"
     }
+  },
+  "whats_new": {
+    "title": "What's new in Haven {{version}}",
+    "settings_hint": "Settings > What's New picks which updates show this.",
+    "unavailable": "The release notes aren't available on this server."
   }
 }

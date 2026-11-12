@@ -135,6 +135,13 @@
   background: var(--bg-hover);
 }
 
+.status-option.status-set-custom {
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.125rem;
+  padding-bottom: 0.5rem;
+}
+
 .status-option .user-dot {
   position: static;
   flex-shrink: 0;
@@ -931,6 +938,9 @@ html.reduce-motion .pa-marquee-track { animation: none; }
 }
 
 /* ── Risky download warning modal ── */
+/* Also the external link warning. It answers a click anywhere, so it sits
+   above every panel and window: at 10000 it opened behind a full-width
+   forum topic (99996) and the link looked dead. */
 .risky-download-overlay {
   position: fixed;
   inset: 0;
@@ -938,7 +948,7 @@ html.reduce-motion .pa-marquee-track { animation: none; }
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10000;
+  z-index: 999999;
   animation: fadeIn 0.15s ease;
 }
 .risky-download-modal {

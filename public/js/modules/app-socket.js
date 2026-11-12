@@ -255,6 +255,8 @@ _listenSession() {
     if (data.version) {
       const vEl = document.getElementById('status-version');
       if (vEl) vEl.textContent = 'v' + data.version;
+      // Release notes after an update (app-whats-new.js).
+      this._whatsNewCheck(data.version);
     }
     // Refresh display name + admin UI with authoritative data
     document.getElementById('current-user').textContent = this.user.displayName || this.user.username;

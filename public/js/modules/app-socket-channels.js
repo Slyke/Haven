@@ -353,6 +353,8 @@ _listenChannelsAndMessages() {
         // When newer messages have been trimmed, the scroll "bottom" is
         // artificial and re-coupling would yank the user forward.
         this._coupledToBottom = true;
+        // Back at the newest messages: they have been seen.
+        this._clearSeenUnread();
       } else if (st < lastScrollTop) {
         // User scrolled up: decouple immediately
         this._coupledToBottom = false;
@@ -510,6 +512,7 @@ _listenChannelsAndMessages() {
           if (!isActivelyViewing && !_quiet) {
             this._fireNativeNotification(data.message, data.channelCode, _notifOpts);
           }
+          if (!isActivelyViewing) this._mentionsCount?.(data.message, data.channelCode);
         }
       }
       // TTS: speak the message aloud for all listeners
@@ -576,6 +579,7 @@ _listenChannelsAndMessages() {
         }
         // Fire native OS notification when tab/window is not visible
         if (!_quiet2) this._fireNativeNotification(data.message, data.channelCode, _notifOpts2);
+        this._mentionsCount?.(data.message, data.channelCode);
       }
     }
 
